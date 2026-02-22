@@ -24,7 +24,7 @@ openpyxl==3.1.2
 # Background jobs (optional)
 celery==5.3.6
 redis==5.0.1
-kombu==5.3.3
+kombu==5.3.4
 
 # Production server
 gunicorn==21.2.0
