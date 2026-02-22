@@ -17,7 +17,7 @@ def create_app(config_name=None):
     if config_name is None:
         config_name = os.environ.get('FLASK_ENV', 'development')
 
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder='../frontend', static_url_path='/')
     app.config.from_object(config[config_name])
 
     # ── Core extensions ────────────────────────────────────────
@@ -82,17 +82,22 @@ def create_app(config_name=None):
     app.register_blueprint(library_bp,  url_prefix='/api/library')
     app.register_blueprint(forms_bp,    url_prefix='/api/forms')
     app.register_blueprint(quality_bp,  url_prefix='/api/quality')
-    app.register_blueprint(ai_bp,       url_prefix='/api/ai')
-    app.register_blueprint(reports_bp,  url_prefix='/api/reports')
-    app.register_blueprint(q40_bp,      url_prefix='/api/q40')
+    app.register_blueprint(ai_bp, url_prefix='/api/ai')
+    app.register_blueprint(reports_bp, url_prefix='/api/reports')
+    app.register_blueprint(q40_bp, url_prefix='/api/q40')
 
-    # ── Health endpoint ────────────────────────────────────────
+    # ── الصفحة الرئيسية ─────────────────────────────
+    @app.route('/')
+    def home():
+        return app.send_static_file('index.html')
+
+    # ── Health endpoint ─────────────────────────────
     @app.route('/api/health')
     def health():
         return {
-            "status":    "ok",
-            "version":   "3.1.0",
-            "platform":  "QMS Enterprise — Quality 4.0",
+            "status": "ok",
+            "version": "3.1.0",
+            "platform": "QMS Enterprise — Quality 4.0",
             "websocket": socketio is not None,
             "modules": [
                 "auth", "quality", "forms", "ai", "reports", "library",
