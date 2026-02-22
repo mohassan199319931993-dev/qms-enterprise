@@ -89,12 +89,12 @@ def create_app(config_name=None):
     # ── الصفحة الرئيسية ─────────────────────────────
     @app.route('/')
     def home():
-        return app.send_static_file('index.html')
+        return app.send_static_file('login.html')
 
     @app.route('/', defaults={'path': ''})
     @app.route('/<path:path>')
     def serve(path):
-        return app.send_static_file('index.html')
+        return app.send_static_file('login.html')
 
     # ── Health endpoint ─────────────────────────────
     @app.route('/api/health')
