@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Traceability — QMS Quality 4.0</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/enterprise.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="enterprise-body">
+<div class="app-layout">
+  <aside class="sidebar enterprise-sidebar" id="appSidebar"></aside>
+  <main class="main-content">
+    <header class="topbar">
+      <div class="topbar-title"><span id="topbarTitle"></span></div>
+      <div class="topbar-actions">
+        <button class="btn-primary" onclick="showAddBatch()"><i class="fas fa-plus"></i> New Batch</button>
+        <span id="topbarFactory" class="badge badge-primary"></span>
+      </div>
+    </header>
+    <div class="page-content">
+
+      <!-- Stats row -->
+      <div class="kpi-row">
+        <div class="kpi-card kpi-fpy"><div class="kpi-label">Total Batches</div><div class="kpi-value" id="totalBatches">—</div><div class="kpi-sub">All time</div></div>
+        <div class="kpi-card kpi-oee"><div class="kpi-label">In Production</div><div class="kpi-value" id="inProdBatches">—</div><div class="kpi-sub">Active batches</div></div>
+        <div class="kpi-card kpi-ppm"><div class="kpi-label">Quarantine</div><div class="kpi-value" id="quarBatches">—</div><div class="kpi-sub">Under review</div></div>
+        <div class="kpi-card kpi-dr"><div class="kpi-label">Released</div><div class="kpi-value" id="relBatches">—</div><div class="kpi-sub">Quality approved</div></div>
+      </div>
+
+      <!-- Batch list + trace view -->
+      <div class="chart-grid-2">
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <h3>Production Batches</h3>
+            <select id="batchStatusFilter" class="form-input" style="width:140px" onchange="loadBatches()">
+              <option value="">All Statuses</option>
+              <option value="in_production">In Production</option>
+              <option value="completed">Completed</option>
+              <option value="quarantine">Quarantine</option>
+              <option value="released">Released</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+          <div id="batchList" style="padding:.5rem 1rem 1rem;display:flex;flex-direction:column;gap:.4rem;max-height:450px;overflow-y:auto">
+            <div class="empty-state">Loading batches...</div>
+          </div>
+        </div>
+
+        <!-- Trace view -->
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <h3 id="traceTitle">Batch Trace</h3>
+          </div>
+          <div id="traceView" class="trace-timeline">
+            <div class="empty-state">Select a batch to view its full trace</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- Add Batch Modal -->
+<div id="addBatchModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="modal-box">
+    <div class="modal-header"><h3>Create Production Batch</h3><button onclick="closeModal()" class="btn-sm"><i class="fas fa-times"></i></button></div>
+    <div class="modal-body">
+      <label>Batch Number *</label><input id="batchNum" class="form-input" placeholder="BATCH-2024-001">
+      <label>Material Supplier</label><input id="batchSupplier" class="form-input" placeholder="Supplier name">
+      <label>Material Type</label><input id="batchMaterial" class="form-input" placeholder="Steel grade, polymer type...">
+      <label>Production Date</label><input id="batchDate" class="form-input" type="date">
+      <label>Quantity</label><input id="batchQty" class="form-input" type="number" placeholder="1000">
+      <label>Status</label>
+      <select id="batchStatus" class="form-input">
+        <option value="planned">Planned</option><option value="in_production" selected>In Production</option>
+        <option value="completed">Completed</option><option value="released">Released</option>
+      </select>
+      <label>Notes</label><textarea id="batchNotes" class="form-input" rows="2" placeholder="Any additional notes..."></textarea>
+      <button class="btn-primary" onclick="saveBatch()"><i class="fas fa-save"></i> Create Batch</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;display:flex;align-items:center;justify-content:center}
+.modal-box{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);width:440px;overflow:hidden;max-height:90vh;overflow-y:auto}
+.modal-header{padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--bg-surface)}
+.modal-header h3{margin:0;font-size:.95rem}
+.modal-body{padding:1.25rem;display:flex;flex-direction:column;gap:.75rem}
+.modal-body label{font-size:.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.07em}
+.modal-body .form-input{width:100%;box-sizing:border-box}
+</style>
+<script>
+const DEMO_BATCHES = [
+  {id:1,batch_number:'BATCH-A001',material_supplier:'SteelCo Ltd',material_type:'Carbon Steel',production_date:'2025-01-15',quantity:5000,status:'released',trace_count:8,quality_grade:'A'},
+  {id:2,batch_number:'BATCH-A002',material_supplier:'PolyMat Inc',material_type:'ABS Polymer',production_date:'2025-01-22',quantity:3200,status:'in_production',trace_count:4,quality_grade:null},
+  {id:3,batch_number:'BATCH-B001',material_supplier:'AlumTech',material_type:'Aluminum 6061',production_date:'2025-01-28',quantity:1800,status:'quarantine',trace_count:6,quality_grade:null},
+  {id:4,batch_number:'BATCH-B002',material_supplier:'SteelCo Ltd',material_type:'Stainless Steel',production_date:'2025-02-01',quantity:4500,status:'completed',trace_count:12,quality_grade:'B+'},
+];
+
+const DEMO_TRACE = [
+  {type:'batch',icon:'fa-box',color:'var(--cyan)',title:'Batch Created',meta:'BATCH-A001 — SteelCo Ltd — 5,000 units'},
+  {type:'machine',icon:'fa-cog',color:'var(--violet)',title:'Processed on M-01 CNC Press',meta:'Operator: Ahmed Hassan — 2025-01-15 08:00'},
+  {type:'machine',icon:'fa-cog',color:'var(--violet)',title:'Assembly on M-02',meta:'Operator: Sara Ali — 2025-01-15 14:00'},
+  {type:'defect',icon:'fa-triangle-exclamation',color:'var(--amber)',title:'Defect Recorded: D-101 Surface Scratch',meta:'12 units defective — Night shift'},
+  {type:'action',icon:'fa-wrench',color:'var(--emerald)',title:'Corrective Action Applied',meta:'Machine recalibrated — Defect resolved'},
+  {type:'release',icon:'fa-check-circle',color:'var(--emerald)',title:'Batch Released — Quality Grade A',meta:'Final QC inspection passed — 2025-01-16'},
+];
+
+document.addEventListener('DOMContentLoaded', () => {
+  const user = initAppShell('Batch Traceability');
+  if (!user) return;
+  document.getElementById('batchDate').value = new Date().toISOString().slice(0,10);
+  loadBatches();
+});
+
+async function loadBatches() {
+  const status = document.getElementById('batchStatusFilter').value;
+  let data;
+  try {
+    const qs = status ? `?status=${status}` : '';
+    data = await qmsApi('/api/q40/batches' + qs);
+  } catch { data = DEMO_BATCHES.filter(b => !status || b.status === status); }
+
+  // Update stats
+  document.getElementById('totalBatches').textContent = data.length;
+  document.getElementById('inProdBatches').textContent = data.filter(b=>b.status==='in_production').length;
+  document.getElementById('quarBatches').textContent = data.filter(b=>b.status==='quarantine').length;
+  document.getElementById('relBatches').textContent = data.filter(b=>b.status==='released').length;
+
+  const statusColors = {in_production:'var(--emerald)',completed:'var(--cyan)',quarantine:'var(--amber)',released:'var(--violet)',rejected:'var(--red)',planned:'var(--text-muted)'};
+  const el = document.getElementById('batchList');
+  if (!data.length) { el.innerHTML = '<div class="empty-state">No batches found</div>'; return; }
+  el.innerHTML = data.map(b=>`
+    <div onclick="loadTrace(${b.id},'${b.batch_number}')" style="background:var(--bg-raised);border:1px solid var(--border);border-radius:6px;padding:.75rem 1rem;cursor:pointer;transition:border-color .15s" onmouseenter="this.style.borderColor='var(--cyan)'" onmouseleave="this.style.borderColor='var(--border)'">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.25rem">
+        <span style="font-family:var(--font-mono);font-weight:700;font-size:.85rem">${b.batch_number}</span>
+        <span style="font-size:.65rem;font-family:var(--font-mono);padding:.15rem .4rem;border-radius:20px;background:rgba(0,0,0,.3);color:${statusColors[b.status]||'var(--text-muted)'}">${b.status.replace('_',' ')}</span>
+      </div>
+      <div style="font-size:.75rem;color:var(--text-muted)">${b.material_supplier||'—'} · ${b.material_type||'—'}</div>
+      <div style="font-size:.72rem;color:var(--text-muted);margin-top:.2rem">Date: ${b.production_date} · Qty: ${fmt(b.quantity)} · ${b.trace_count||0} trace links</div>
+      ${b.quality_grade ? `<div style="font-size:.72rem;color:var(--emerald);margin-top:.15rem">Grade: ${b.quality_grade}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+async function loadTrace(batchId, batchNum) {
+  document.getElementById('traceTitle').textContent = `Trace: ${batchNum}`;
+  let data;
+  try {
+    const raw = await qmsApi(`/api/q40/batches/${batchId}/trace`);
+    data = raw.length ? raw : DEMO_TRACE;
+  } catch { data = DEMO_TRACE; }
+
+  const el = document.getElementById('traceView');
+  if (Array.isArray(data) && data[0] && data[0].type) {
+    // Demo format
+    el.innerHTML = data.map(t=>`
+      <div class="trace-item">
+        <div class="trace-icon" style="background:rgba(${t.color.includes('cyan')?'34,211,238':t.color.includes('violet')?'167,139,250':t.color.includes('amber')?'245,158,11':t.color.includes('emerald')?'52,211,153':'239,68,68'},.12);color:${t.color}"><i class="fas ${t.icon}"></i></div>
+        <div class="trace-content">
+          <div class="trace-title">${t.title}</div>
+          <div class="trace-meta">${t.meta}</div>
+        </div>
+      </div>
+    `).join('');
+  } else {
+    // API format
+    el.innerHTML = (Array.isArray(data) ? data : []).map(t=>`
+      <div class="trace-item">
+        <div class="trace-icon" style="background:var(--cyan-dim);color:var(--cyan)"><i class="fas fa-link"></i></div>
+        <div class="trace-content">
+          <div class="trace-title">${t.machine_code ? `Machine: ${t.machine_code}` : 'Production Step'}</div>
+          <div class="trace-meta">${t.operator_name||''} ${t.defect_code?`· Defect: ${t.defect_code}`:''} ${t.corrective_action?`· Action: ${t.corrective_action}`:''}</div>
+        </div>
+      </div>
+    `).join('') || '<div class="empty-state">No trace events found</div>';
+  }
+}
+
+function showAddBatch() { document.getElementById('addBatchModal').style.display = 'flex'; }
+function closeModal() { document.getElementById('addBatchModal').style.display = 'none'; }
+
+async function saveBatch() {
+  const payload = {
+    batch_number: document.getElementById('batchNum').value,
+    material_supplier: document.getElementById('batchSupplier').value,
+    material_type: document.getElementById('batchMaterial').value,
+    production_date: document.getElementById('batchDate').value,
+    quantity: parseInt(document.getElementById('batchQty').value) || null,
+    status: document.getElementById('batchStatus').value,
+    notes: document.getElementById('batchNotes').value,
+  };
+  if (!payload.batch_number) { showToast('Batch number is required', 'error'); return; }
+  try {
+    await qmsApi('/api/q40/batches', 'POST', payload);
+    showToast('Batch created!', 'success');
+    closeModal();
+    loadBatches();
+  } catch { showToast('Error creating batch', 'error'); }
+}
+</script>
+<script src="js/utils.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/guards.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Profile — QMS Platform</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo"><i class="fas fa-shield-halved"></i></div>
+      <div>
+        <div class="sidebar-title">QMS Platform</div>
+        <div class="sidebar-subtitle" id="factoryNameSidebar">—</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <a class="nav-item" href="dashboard.html"><i class="fas fa-gauge nav-icon"></i> Dashboard</a>
+        <a class="nav-item" href="roles.html"><i class="fas fa-user-shield nav-icon"></i> Roles</a>
+        <a class="nav-item active" href="profile.html"><i class="fas fa-user-circle nav-icon"></i> My Profile</a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="user-avatar" id="sidebarAvatar">?</div>
+        <div>
+          <div class="user-name" id="sidebarUserName">—</div>
+          <div class="user-role" id="sidebarUserRole">—</div>
+        </div>
+      </div>
+      <button class="nav-item" onclick="logout()" style="margin-top:.5rem; color:var(--danger);">
+        <i class="fas fa-sign-out-alt nav-icon"></i> Sign Out
+      </button>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <header class="topbar">
+      <div class="topbar-title">My Profile</div>
+    </header>
+
+    <div class="page-content">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
+
+        <!-- Profile Card -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="fas fa-user"></i> Account Information</span>
+          </div>
+          <div class="card-body">
+            <!-- Avatar -->
+            <div style="text-align:center; margin-bottom:1.5rem;">
+              <div id="profileAvatar" style="width:80px;height:80px;border-radius:50%;background:var(--primary);color:white;font-size:2rem;font-weight:700;display:inline-flex;align-items:center;justify-content:center;margin-bottom:.75rem;">?</div>
+              <div class="fw-600" id="profileName">Loading...</div>
+              <div class="text-muted text-sm" id="profileRole"></div>
+              <div class="text-muted text-sm" id="profileFactory"></div>
+            </div>
+
+            <div id="profileAlert" class="alert alert-success" style="display:none"></div>
+            <div id="profileError" class="alert alert-danger" style="display:none"></div>
+
+            <form id="profileForm" novalidate>
+              <div class="form-group">
+                <label class="form-label" for="nameInput">Full Name</label>
+                <div class="input-wrap">
+                  <i class="fas fa-user input-icon"></i>
+                  <input type="text" id="nameInput" class="form-input" placeholder="Your full name">
+                </div>
+                <span class="field-error"></span>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="emailDisplay">Email</label>
+                <div class="input-wrap">
+                  <i class="fas fa-envelope input-icon"></i>
+                  <input type="email" id="emailDisplay" class="form-input" disabled style="background:var(--gray-50);">
+                </div>
+                <span class="field-error text-sm">Email cannot be changed</span>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="memberSince">Member Since</label>
+                <div class="input-wrap">
+                  <i class="fas fa-calendar input-icon"></i>
+                  <input type="text" id="memberSince" class="form-input" disabled style="background:var(--gray-50);">
+                </div>
+              </div>
+
+              <button type="submit" class="btn btn-primary" id="saveProfileBtn">
+                <span class="btn-text"><i class="fas fa-save"></i> Save Changes</span>
+                <div class="spinner"></div>
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Change Password Card -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title"><i class="fas fa-lock"></i> Change Password</span>
+          </div>
+          <div class="card-body">
+            <div id="pwdAlert" class="alert" style="display:none"></div>
+
+            <form id="passwordForm" novalidate>
+              <div class="form-group">
+                <label class="form-label" for="currentPwd">Current Password <span class="required">*</span></label>
+                <div class="input-wrap">
+                  <i class="fas fa-lock input-icon"></i>
+                  <input type="password" id="currentPwd" class="form-input" placeholder="Your current password" required>
+                  <button type="button" class="input-action" onclick="togglePasswordVisibility('currentPwd',this)">
+                    <i class="fas fa-eye"></i>
+                  </button>
+                </div>
+                <span class="field-error"></span>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="newPwd">New Password <span class="required">*</span></label>
+                <div class="input-wrap">
+                  <i class="fas fa-lock input-icon"></i>
+                  <input type="password" id="newPwd" class="form-input" placeholder="Min 8 chars, 1 uppercase, 1 number" required>
+                  <button type="button" class="input-action" onclick="togglePasswordVisibility('newPwd',this)">
+                    <i class="fas fa-eye"></i>
+                  </button>
+                </div>
+                <div id="strengthBar">
+                  <div class="strength-bar">
+                    <div class="strength-segment"></div>
+                    <div class="strength-segment"></div>
+                    <div class="strength-segment"></div>
+                    <div class="strength-segment"></div>
+                    <div class="strength-segment"></div>
+                  </div>
+                  <div class="strength-label"></div>
+                </div>
+                <span class="field-error"></span>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="confirmPwd">Confirm New Password <span class="required">*</span></label>
+                <div class="input-wrap">
+                  <i class="fas fa-lock input-icon"></i>
+                  <input type="password" id="confirmPwd" class="form-input" placeholder="Repeat new password" required>
+                </div>
+                <span class="field-error"></span>
+              </div>
+
+              <button type="submit" class="btn btn-primary" id="changePwdBtn">
+                <span class="btn-text"><i class="fas fa-key"></i> Update Password</span>
+                <div class="spinner"></div>
+              </button>
+            </form>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="js/utils.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/guards.js"></script>
+<script src="js/app.js"></script>
+<script>
+  let currentUser = null;
+
+  (async () => {
+    currentUser = await requireAuth();
+    if (!currentUser) return;
+
+    // Sidebar
+    document.getElementById('sidebarAvatar').textContent = getInitials(currentUser.name);
+    document.getElementById('sidebarUserName').textContent = currentUser.name;
+    document.getElementById('sidebarUserRole').textContent = currentUser.role?.name || '';
+    document.getElementById('factoryNameSidebar').textContent = currentUser.factory?.name || '';
+
+    // Profile card
+    document.getElementById('profileAvatar').textContent = getInitials(currentUser.name);
+    document.getElementById('profileName').textContent = currentUser.name;
+    document.getElementById('profileRole').textContent = currentUser.role?.name || 'No role';
+    document.getElementById('profileFactory').textContent = currentUser.factory?.name || '';
+    document.getElementById('nameInput').value = currentUser.name;
+    document.getElementById('emailDisplay').value = currentUser.email;
+    document.getElementById('memberSince').value = formatDate(currentUser.created_at);
+  })();
+
+  // Profile form
+  document.getElementById('profileForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('saveProfileBtn');
+    const name = document.getElementById('nameInput').value.trim();
+
+    const valid = validateField(document.getElementById('nameInput'), [Validators.required, Validators.minLen(2)]);
+    if (!valid) return;
+
+    setButtonLoading(btn, true);
+    try {
+      const { data, ok } = await API.updateMe({ name });
+      if (!ok) throw new Error(data.error || 'Update failed');
+      document.getElementById('profileName').textContent = data.name;
+      document.getElementById('sidebarUserName').textContent = data.name;
+      document.getElementById('profileAvatar').textContent = getInitials(data.name);
+      document.getElementById('profileAlert').textContent = 'Profile updated successfully!';
+      document.getElementById('profileAlert').className = 'alert alert-success';
+      document.getElementById('profileAlert').style.display = 'flex';
+      setTimeout(() => { document.getElementById('profileAlert').style.display = 'none'; }, 3000);
+    } catch (err) {
+      document.getElementById('profileError').textContent = err.message;
+      document.getElementById('profileError').style.display = 'flex';
+    } finally {
+      setButtonLoading(btn, false);
+    }
+  });
+
+  // Password strength
+  document.getElementById('newPwd').addEventListener('input', function() {
+    updateStrengthBar(this, 'strengthBar');
+  });
+
+  // Password form
+  document.getElementById('passwordForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('changePwdBtn');
+    const pwdAlert = document.getElementById('pwdAlert');
+    const newPwd = document.getElementById('newPwd').value;
+    const confirmPwd = document.getElementById('confirmPwd').value;
+
+    let valid = true;
+    valid &= validateField(document.getElementById('currentPwd'), [Validators.required]);
+    valid &= validateField(document.getElementById('newPwd'), [Validators.required, Validators.password]);
+    valid &= validateField(document.getElementById('confirmPwd'), [Validators.required, Validators.match(newPwd)]);
+    if (!valid) return;
+
+    setButtonLoading(btn, true);
+    try {
+      const { data, ok } = await API.updateMe({
+        current_password: document.getElementById('currentPwd').value,
+        new_password: newPwd
+      });
+      if (!ok) throw new Error(data.error || 'Password change failed');
+      document.getElementById('passwordForm').reset();
+      pwdAlert.textContent = 'Password updated successfully!';
+      pwdAlert.className = 'alert alert-success';
+      pwdAlert.style.display = 'flex';
+      showToast('Password updated!', 'success');
+      setTimeout(() => { pwdAlert.style.display = 'none'; }, 3000);
+    } catch (err) {
+      pwdAlert.textContent = err.message;
+      pwdAlert.className = 'alert alert-danger';
+      pwdAlert.style.display = 'flex';
+    } finally {
+      setButtonLoading(btn, false);
+    }
+  });
+</script>
+</body>
+</html>

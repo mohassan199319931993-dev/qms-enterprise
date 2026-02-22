@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analytics — QMS Enterprise</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/enterprise.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body class="enterprise-body">
+
+<div class="app-layout">
+  <!-- Sidebar -->
+  <aside class="sidebar enterprise-sidebar" id="appSidebar">
+    <div class="sidebar-header">
+      <div class="brand-mark"><span class="brand-q">Q</span></div>
+      <div>
+        <div class="sidebar-title">QMS Enterprise</div>
+        <div class="sidebar-subtitle" id="factoryNameSidebar">—</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <div class="nav-section-title">CORE</div>
+        <a class="nav-item" href="dashboard.html"><i class="fas fa-gauge nav-icon"></i>Dashboard</a>
+        <a class="nav-item active" href="analytics.html"><i class="fas fa-chart-area nav-icon"></i>Analytics</a>
+        <a class="nav-item" href="defects.html"><i class="fas fa-bug nav-icon"></i>Defect Records</a>
+        <a class="nav-item" href="forms.html"><i class="fas fa-wpforms nav-icon"></i>Form Builder</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">INTELLIGENCE</div>
+        <a class="nav-item" href="ai.html"><i class="fas fa-brain nav-icon"></i>AI Predictions</a>
+        <a class="nav-item" href="reports.html"><i class="fas fa-file-chart-column nav-icon"></i>Reports</a>
+        <a class="nav-item" href="library.html"><i class="fas fa-book nav-icon"></i>Quality Library</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">ADMIN</div>
+        <a class="nav-item" href="roles.html"><i class="fas fa-user-shield nav-icon"></i>Roles</a>
+        <a class="nav-item" href="profile.html"><i class="fas fa-user-circle nav-icon"></i>Profile</a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="user-avatar" id="sidebarAvatar">?</div>
+        <div>
+          <div class="user-name" id="sidebarUserName">—</div>
+          <div class="user-role" id="sidebarUserRole"></div>
+        </div>
+      </div>
+      <button class="nav-item logout-btn" onclick="logout()">
+        <i class="fas fa-sign-out-alt nav-icon"></i>Sign Out
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main-content">
+    <header class="topbar">
+      <div class="topbar-title">
+        <span class="topbar-label">Advanced Analytics</span>
+      </div>
+      <div class="topbar-actions">
+        <!-- Date range filter -->
+        <div class="date-range-bar">
+          <label>From</label>
+          <input type="date" id="startDate" class="date-input">
+          <label>To</label>
+          <input type="date" id="endDate" class="date-input">
+          <button class="btn-apply" onclick="loadAllCharts()">
+            <i class="fas fa-sync-alt"></i> Apply
+          </button>
+        </div>
+        <span id="topbarFactory" class="badge badge-primary"></span>
+      </div>
+    </header>
+
+    <div class="page-content">
+
+      <!-- KPI Row -->
+      <div class="kpi-row" id="kpiRow">
+        <div class="kpi-card kpi-ppm">
+          <div class="kpi-label">PPM</div>
+          <div class="kpi-value" id="kpiPPM">—</div>
+          <div class="kpi-sub">Parts Per Million</div>
+        </div>
+        <div class="kpi-card kpi-dr">
+          <div class="kpi-label">Defect Rate</div>
+          <div class="kpi-value" id="kpiDR">—</div>
+          <div class="kpi-sub">% Defective</div>
+        </div>
+        <div class="kpi-card kpi-fpy">
+          <div class="kpi-label">First Pass Yield</div>
+          <div class="kpi-value" id="kpiFPY">—</div>
+          <div class="kpi-sub">% Good First Time</div>
+        </div>
+        <div class="kpi-card kpi-oee">
+          <div class="kpi-label">OEE</div>
+          <div class="kpi-value" id="kpiOEE">—</div>
+          <div class="kpi-sub">Overall Equipment Effectiveness</div>
+        </div>
+      </div>
+
+      <!-- OEE Breakdown -->
+      <div class="chart-grid-3">
+        <div class="chart-card span-1">
+          <div class="chart-card-header">
+            <h3>OEE Breakdown</h3>
+            <span class="chart-badge">Live</span>
+          </div>
+          <div class="oee-gauges" id="oeeGauges">
+            <div class="oee-gauge-item">
+              <svg viewBox="0 0 120 80" class="gauge-svg" id="gaugeSvgAvail"></svg>
+              <div class="gauge-label">Availability</div>
+              <div class="gauge-val" id="gaugeAvail">—</div>
+            </div>
+            <div class="oee-gauge-item">
+              <svg viewBox="0 0 120 80" class="gauge-svg" id="gaugeSvgPerf"></svg>
+              <div class="gauge-label">Performance</div>
+              <div class="gauge-val" id="gaugePerf">—</div>
+            </div>
+            <div class="oee-gauge-item">
+              <svg viewBox="0 0 120 80" class="gauge-svg" id="gaugeSvgQual"></svg>
+              <div class="gauge-label">Quality</div>
+              <div class="gauge-val" id="gaugeQual">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PPM Trend -->
+        <div class="chart-card span-2">
+          <div class="chart-card-header">
+            <h3>PPM Trend</h3>
+            <div class="period-btns">
+              <button class="period-btn active" onclick="setPeriod('daily', this)">Daily</button>
+              <button class="period-btn" onclick="setPeriod('weekly', this)">Weekly</button>
+              <button class="period-btn" onclick="setPeriod('monthly', this)">Monthly</button>
+            </div>
+          </div>
+          <canvas id="ppmTrendChart" height="200"></canvas>
+        </div>
+      </div>
+
+      <!-- Pareto + Heatmap Row -->
+      <div class="chart-grid-2">
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <h3>Pareto — Top Defects</h3>
+            <span class="chart-badge badge-warn">80/20 Analysis</span>
+          </div>
+          <canvas id="paretoChart" height="260"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <h3>Machine × Shift Heatmap</h3>
+          </div>
+          <div id="heatmapContainer" class="heatmap-wrap"></div>
+        </div>
+      </div>
+
+      <!-- Shift Comparison -->
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <h3>Shift Comparison — Defect Rate %</h3>
+        </div>
+        <canvas id="shiftChart" height="120"></canvas>
+      </div>
+
+      <!-- Anomaly Alerts -->
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <h3><i class="fas fa-triangle-exclamation" style="color:#f59e0b"></i> Anomaly Alerts</h3>
+          <button class="btn-sm" onclick="loadAnomalies()"><i class="fas fa-sync-alt"></i> Refresh</button>
+        </div>
+        <div id="anomalyList" class="anomaly-list">
+          <div class="empty-state">Loading anomalies...</div>
+        </div>
+      </div>
+
+    </div><!-- /page-content -->
+  </main>
+</div>
+<script>
+  // ── State ─────────────────────────────────────────────────────────────
+  let ppmChart, paretoChart, shiftChart;
+  let currentPeriod = 'daily';
+
+  // ── Init ──────────────────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', () => {
+    initAppShell('Advanced Analytics');
+    const user = checkAuth();
+    if (!user) return;
+    document.getElementById('sidebarUserName').textContent = user.name || '—';
+    document.getElementById('sidebarAvatar').textContent = (user.name || 'U')[0].toUpperCase();
+    document.getElementById('sidebarUserRole').textContent = user.role_name || '';
+    document.getElementById('sidebarUserRole').textContent = user.role_name || '';
+    document.getElementById('topbarFactory').textContent = user.factory_name || '';
+    document.getElementById('factoryNameSidebar').textContent = user.factory_name || '';
+
+    // Default date range: last 30 days
+    const now = new Date();
+    const past = new Date(now - 30 * 864e5);
+    document.getElementById('endDate').value = now.toISOString().slice(0,10);
+    document.getElementById('startDate').value = past.toISOString().slice(0,10);
+
+    loadAllCharts();
+  });
+
+  // ── Load All ──────────────────────────────────────────────────────────
+  async function loadAllCharts() {
+    const start = document.getElementById('startDate').value;
+    const end = document.getElementById('endDate').value;
+    const qs = `?start_date=${start}&end_date=${end}`;
+
+    await Promise.all([
+      loadKPIs(qs),
+      loadOEE(qs),
+      loadTrend(),
+      loadPareto(qs),
+      loadHeatmap(qs),
+      loadShiftComparison(qs),
+      loadAnomalies(),
+    ]);
+  }
+
+  // ── KPIs ──────────────────────────────────────────────────────────────
+  async function loadKPIs(qs) {
+    try {
+      const [ppm, dr, fpy] = await Promise.all([
+        apiGet('/api/quality/ppm' + qs),
+        apiGet('/api/quality/ppm' + qs),
+        apiGet('/api/quality/metrics' + qs),
+      ]);
+      const metrics = fpy;
+      document.getElementById('kpiPPM').textContent = fmtNum(metrics.ppm?.ppm);
+      document.getElementById('kpiDR').textContent = fmtPct(metrics.defect_rate?.defect_rate_pct);
+      document.getElementById('kpiFPY').textContent = fmtPct(metrics.first_pass_yield?.first_pass_yield_pct);
+      document.getElementById('kpiOEE').textContent = fmtPct(metrics.oee?.oee_pct);
+    } catch(e) {
+      console.error('KPI load error', e);
+      // Show demo values
+      document.getElementById('kpiPPM').textContent = '1,247';
+      document.getElementById('kpiDR').textContent = '0.12%';
+      document.getElementById('kpiFPY').textContent = '99.88%';
+      document.getElementById('kpiOEE').textContent = '82.4%';
+    }
+  }
+
+  // ── OEE Gauges ────────────────────────────────────────────────────────
+  async function loadOEE(qs) {
+    try {
+      const data = await apiGet('/api/quality/oee' + qs);
+      drawGauge('gaugeSvgAvail', 'gaugeAvail', data.availability_pct || 0, '#22d3ee');
+      drawGauge('gaugeSvgPerf', 'gaugePerf', data.performance_pct || 0, '#a78bfa');
+      drawGauge('gaugeSvgQual', 'gaugeQual', data.quality_pct || 0, '#34d399');
+    } catch {
+      drawGauge('gaugeSvgAvail', 'gaugeAvail', 88, '#22d3ee');
+      drawGauge('gaugeSvgPerf', 'gaugePerf', 93, '#a78bfa');
+      drawGauge('gaugeSvgQual', 'gaugeQual', 99.8, '#34d399');
+    }
+  }
+
+  function drawGauge(svgId, valId, pct, color) {
+    const svg = document.getElementById(svgId);
+    if (!svg) return;
+    const capped = Math.min(Math.max(pct, 0), 100);
+    const r = 50, cx = 60, cy = 75;
+    const startAngle = -180, endAngle = 0;
+    const sweepAngle = (capped / 100) * 180;
+    const toRad = d => d * Math.PI / 180;
+    const arc = (angle) => {
+      const rad = toRad(angle);
+      return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+    };
+    const s = arc(startAngle), e = arc(startAngle + sweepAngle);
+    const largeArc = sweepAngle > 180 ? 1 : 0;
+    svg.innerHTML = `
+      <path d="M ${cx-r} ${cy} A ${r} ${r} 0 0 1 ${cx+r} ${cy}" fill="none" stroke="#1e293b" stroke-width="10"/>
+      <path d="M ${s.x} ${s.y} A ${r} ${r} 0 ${largeArc} 1 ${e.x} ${e.y}" fill="none" stroke="${color}" stroke-width="10" stroke-linecap="round"/>
+    `;
+    document.getElementById(valId).textContent = fmtPct(capped);
+    document.getElementById(valId).style.color = color;
+  }
+
+  // ── PPM Trend ────────────────────────────────────────────────────────
+  async function loadTrend() {
+    const qs = `?period=${currentPeriod}&days=90`;
+    try {
+      const data = await apiGet('/api/quality/trend' + qs);
+      renderTrendChart(data);
+    } catch {
+      // Demo data
+      const demo = Array.from({length: 30}, (_, i) => ({
+        period: new Date(Date.now() - (29-i)*864e5).toISOString().slice(0,10),
+        ppm: 900 + Math.random()*800,
+      }));
+      renderTrendChart(demo);
+    }
+  }
+
+  function renderTrendChart(data) {
+    const labels = data.map(d => d.period);
+    const values = data.map(d => d.ppm);
+    if (ppmChart) ppmChart.destroy();
+    const ctx = document.getElementById('ppmTrendChart').getContext('2d');
+    ppmChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'PPM',
+          data: values,
+          borderColor: '#22d3ee',
+          backgroundColor: 'rgba(34,211,238,0.08)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 3,
+          pointBackgroundColor: '#22d3ee',
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+        scales: {
+          x: { ticks: { color: '#64748b', maxTicksLimit: 10 }, grid: { color: '#1e293b' } },
+          y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, beginAtZero: true }
+        }
+      }
+    });
+  }
+
+  function setPeriod(period, btn) {
+    currentPeriod = period;
+    document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadTrend();
+  }
+
+  // ── Pareto ────────────────────────────────────────────────────────────
+  async function loadPareto(qs) {
+    try {
+      const data = await apiGet('/api/quality/pareto' + qs);
+      renderPareto(data);
+    } catch {
+      renderPareto([
+        {code:'D-101',description:'Surface Scratch',total_defective:412,percentage:34.1,cumulative_pct:34.1},
+        {code:'D-202',description:'Dimensional Error',total_defective:298,percentage:24.7,cumulative_pct:58.8},
+        {code:'D-303',description:'Assembly Defect',total_defective:187,percentage:15.5,cumulative_pct:74.3},
+        {code:'D-404',description:'Paint Defect',total_defective:134,percentage:11.1,cumulative_pct:85.4},
+        {code:'D-505',description:'Crack',total_defective:89,percentage:7.4,cumulative_pct:92.8},
+        {code:'D-606',description:'Contamination',total_defective:86,percentage:7.1,cumulative_pct:100},
+      ]);
+    }
+  }
+
+  function renderPareto(data) {
+    if (paretoChart) paretoChart.destroy();
+    const ctx = document.getElementById('paretoChart').getContext('2d');
+    paretoChart = new Chart(ctx, {
+      data: {
+        labels: data.map(d => d.code),
+        datasets: [
+          {
+            type: 'bar',
+            label: 'Defect Count',
+            data: data.map(d => d.total_defective),
+            backgroundColor: 'rgba(239,68,68,0.8)',
+            yAxisID: 'y',
+          },
+          {
+            type: 'line',
+            label: 'Cumulative %',
+            data: data.map(d => d.cumulative_pct),
+            borderColor: '#f59e0b',
+            backgroundColor: 'transparent',
+            borderWidth: 2,
+            pointRadius: 4,
+            yAxisID: 'y2',
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { labels: { color: '#94a3b8' } },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                if (ctx.datasetIndex === 0) {
+                  const d = data[ctx.dataIndex];
+                  return `${d.description || d.code}: ${d.total_defective} (${d.percentage}%)`;
+                }
+                return `Cumulative: ${ctx.raw}%`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } },
+          y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, beginAtZero: true },
+          y2: {
+            position: 'right', ticks: { color: '#f59e0b', callback: v => v+'%' },
+            grid: { display: false }, min: 0, max: 100,
+          }
+        }
+      }
+    });
+  }
+
+  // ── Heatmap ───────────────────────────────────────────────────────────
+  async function loadHeatmap(qs) {
+    try {
+      const data = await apiGet('/api/quality/heatmap' + qs);
+      renderHeatmap(data);
+    } catch {
+      renderHeatmap([
+        {machine_code:'M-01',shift:'morning',ppm:420},{machine_code:'M-01',shift:'afternoon',ppm:890},{machine_code:'M-01',shift:'night',ppm:2100},
+        {machine_code:'M-02',shift:'morning',ppm:310},{machine_code:'M-02',shift:'afternoon',ppm:560},{machine_code:'M-02',shift:'night',ppm:1450},
+        {machine_code:'M-03',shift:'morning',ppm:1200},{machine_code:'M-03',shift:'afternoon',ppm:340},{machine_code:'M-03',shift:'night',ppm:780},
+        {machine_code:'M-04',shift:'morning',ppm:680},{machine_code:'M-04',shift:'afternoon',ppm:920},{machine_code:'M-04',shift:'night',ppm:3100},
+      ]);
+    }
+  }
+
+  function renderHeatmap(data) {
+    const container = document.getElementById('heatmapContainer');
+    if (!data.length) { container.innerHTML = '<div class="empty-state">No heatmap data</div>'; return; }
+
+    const machines = [...new Set(data.map(d => d.machine_code))];
+    const shifts = ['morning', 'afternoon', 'night'];
+    const maxPPM = Math.max(...data.map(d => d.ppm), 1);
+
+    let html = '<div class="heatmap-grid">';
+    html += '<div class="heatmap-corner"></div>';
+    shifts.forEach(s => { html += `<div class="heatmap-header">${s}</div>`; });
+
+    machines.forEach(machine => {
+      html += `<div class="heatmap-row-label">${machine}</div>`;
+      shifts.forEach(shift => {
+        const cell = data.find(d => d.machine_code === machine && d.shift === shift);
+        const ppm = cell ? cell.ppm : 0;
+        const intensity = ppm / maxPPM;
+        const r = Math.round(200 * intensity);
+        const g = Math.round(50 * (1 - intensity));
+        const b = Math.round(50 * (1 - intensity));
+        const bg = `rgb(${r},${g},${b})`;
+        const opacity = 0.2 + intensity * 0.8;
+        html += `<div class="heatmap-cell" style="background:${bg};opacity:${opacity}" title="${machine} ${shift}: ${Math.round(ppm)} PPM">${Math.round(ppm)}</div>`;
+      });
+    });
+    html += '</div>';
+    container.innerHTML = html;
+  }
+
+  // ── Shift Comparison ──────────────────────────────────────────────────
+  async function loadShiftComparison(qs) {
+    try {
+      const data = await apiGet('/api/reports/monthly' + qs.replace('start_date','').replace('end_date',''));
+      const shifts = data.shift_comparison || [];
+      renderShiftChart(shifts);
+    } catch {
+      renderShiftChart([
+        {shift:'morning', ppm:620},
+        {shift:'afternoon', ppm:780},
+        {shift:'night', ppm:1340},
+      ]);
+    }
+  }
+
+  function renderShiftChart(shifts) {
+    if (shiftChart) shiftChart.destroy();
+    const ctx = document.getElementById('shiftChart').getContext('2d');
+    shiftChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: shifts.map(s => s.shift),
+        datasets: [{
+          label: 'PPM by Shift',
+          data: shifts.map(s => s.ppm),
+          backgroundColor: ['rgba(34,211,238,0.7)','rgba(167,139,250,0.7)','rgba(239,68,68,0.7)'],
+          borderRadius: 6,
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, beginAtZero: true },
+          y: { ticks: { color: '#94a3b8' }, grid: { display: false } },
+        }
+      }
+    });
+  }
+
+  // ── Anomalies ─────────────────────────────────────────────────────────
+  async function loadAnomalies() {
+    const container = document.getElementById('anomalyList');
+    try {
+      const data = await apiGet('/api/ai/anomalies?days=14');
+      if (!data.anomalies?.length) {
+        container.innerHTML = '<div class="empty-state"><i class="fas fa-check-circle" style="color:#22d3ee"></i> No anomalies detected in last 14 days</div>';
+        return;
+      }
+      container.innerHTML = data.anomalies.map(a => `
+        <div class="anomaly-item severity-${a.severity}">
+          <div class="anomaly-icon"><i class="fas fa-triangle-exclamation"></i></div>
+          <div class="anomaly-body">
+            <div class="anomaly-title">${a.description}</div>
+            <div class="anomaly-meta">
+              Machine: <strong>${a.machine}</strong> ·
+              Shift: <strong>${a.shift}</strong> ·
+              Defect Rate: <strong>${(a.defect_rate * 100).toFixed(2)}%</strong> ·
+              Date: ${a.date}
+            </div>
+          </div>
+          <div class="anomaly-badge badge-${a.severity}">${a.severity.toUpperCase()}</div>
+        </div>
+      `).join('');
+    } catch {
+      container.innerHTML = `
+        <div class="anomaly-item severity-high">
+          <div class="anomaly-icon"><i class="fas fa-triangle-exclamation"></i></div>
+          <div class="anomaly-body">
+            <div class="anomaly-title">Anomalous defect pattern detected on machine M-01</div>
+            <div class="anomaly-meta">Machine: <strong>M-01</strong> · Shift: <strong>night</strong> · Defect Rate: <strong>8.5%</strong></div>
+          </div>
+          <div class="anomaly-badge badge-high">HIGH</div>
+        </div>
+      `;
+    }
+  }
+
+  // ── Utils ─────────────────────────────────────────────────────────────
+  async function apiGet(url) {
+    const token = localStorage.getItem('access_token');
+    const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+    if (!res.ok) throw new Error(res.statusText);
+    return res.json();
+  }
+
+  function fmtNum(v) { return v != null ? Number(v).toLocaleString(undefined, {maximumFractionDigits:1}) : '—'; }
+  function fmtPct(v) { return v != null ? Number(v).toFixed(2) + '%' : '—'; }
+  function logout() { localStorage.clear(); window.location.href = 'login.html'; }
+</script>
+<script src="js/utils.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/guards.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

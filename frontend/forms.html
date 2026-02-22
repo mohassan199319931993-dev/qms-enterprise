@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Form Builder — QMS Enterprise</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/enterprise.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="enterprise-body">
+<div class="app-layout">
+
+  <aside class="sidebar enterprise-sidebar" id="appSidebar">
+    <div class="sidebar-header">
+      <div class="brand-mark"><span class="brand-q">Q</span></div>
+      <div>
+        <div class="sidebar-title">QMS Enterprise</div>
+        <div class="sidebar-subtitle" id="factoryNameSidebar">—</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <div class="nav-section-title">CORE</div>
+        <a class="nav-item" href="dashboard.html"><i class="fas fa-gauge nav-icon"></i>Dashboard</a>
+        <a class="nav-item" href="analytics.html"><i class="fas fa-chart-area nav-icon"></i>Analytics</a>
+        <a class="nav-item" href="defects.html"><i class="fas fa-bug nav-icon"></i>Defect Records</a>
+        <a class="nav-item active" href="forms.html"><i class="fas fa-wpforms nav-icon"></i>Form Builder</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">INTELLIGENCE</div>
+        <a class="nav-item" href="ai.html"><i class="fas fa-brain nav-icon"></i>AI Predictions</a>
+        <a class="nav-item" href="reports.html"><i class="fas fa-file-chart-column nav-icon"></i>Reports</a>
+        <a class="nav-item" href="library.html"><i class="fas fa-book nav-icon"></i>Quality Library</a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="user-avatar" id="sidebarAvatar">?</div>
+        <div>
+          <div class="user-name" id="sidebarUserName">—</div>
+          <div class="user-role" id="sidebarUserRole"></div>
+        </div>
+      </div>
+      <button class="nav-item logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt nav-icon"></i>Sign Out</button>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <header class="topbar">
+      <div class="topbar-title">Dynamic Form Builder</div>
+      <div class="topbar-actions">
+        <button class="btn-primary" onclick="showCreateForm()"><i class="fas fa-plus"></i> New Form</button>
+      </div>
+    </header>
+
+    <div class="page-content">
+      <!-- Forms List / Builder split -->
+      <div id="viewFormsList">
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <h3>Forms</h3>
+            <div class="module-filter-btns">
+              <button class="period-btn active" onclick="filterModule('', this)">All</button>
+              <button class="period-btn" onclick="filterModule('inspection', this)">Inspection</button>
+              <button class="period-btn" onclick="filterModule('production', this)">Production</button>
+              <button class="period-btn" onclick="filterModule('maintenance', this)">Maintenance</button>
+            </div>
+          </div>
+          <div id="formsList" class="forms-list-grid">
+            <div class="empty-state">Loading forms...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Form Builder Panel -->
+      <div id="viewBuilder" style="display:none">
+        <div class="builder-layout">
+          <!-- Left: Field Palette -->
+          <div class="field-palette chart-card">
+            <div class="chart-card-header"><h3>Field Types</h3></div>
+            <div class="field-type-list">
+              <div class="field-type-item" draggable="true" data-type="text" ondragstart="dragStart(event)">
+                <i class="fas fa-font"></i> Text
+              </div>
+              <div class="field-type-item" draggable="true" data-type="number" ondragstart="dragStart(event)">
+                <i class="fas fa-hashtag"></i> Number
+              </div>
+              <div class="field-type-item" draggable="true" data-type="select" ondragstart="dragStart(event)">
+                <i class="fas fa-chevron-down"></i> Dropdown
+              </div>
+              <div class="field-type-item" draggable="true" data-type="date" ondragstart="dragStart(event)">
+                <i class="fas fa-calendar"></i> Date
+              </div>
+              <div class="field-type-item" draggable="true" data-type="checkbox" ondragstart="dragStart(event)">
+                <i class="fas fa-check-square"></i> Checkbox
+              </div>
+              <div class="field-type-item" draggable="true" data-type="textarea" ondragstart="dragStart(event)">
+                <i class="fas fa-align-left"></i> Textarea
+              </div>
+              <div class="field-type-item" draggable="true" data-type="calculated" ondragstart="dragStart(event)">
+                <i class="fas fa-calculator"></i> Calculated
+              </div>
+            </div>
+          </div>
+
+          <!-- Center: Builder Canvas -->
+          <div class="builder-canvas-wrap chart-card">
+            <div class="chart-card-header">
+              <div>
+                <input type="text" id="formName" class="form-input" placeholder="Form Name *" style="font-size:1.1rem;font-weight:600;">
+                <select id="formModule" class="form-input" style="margin-left:.5rem">
+                  <option value="inspection">Inspection</option>
+                  <option value="production">Production</option>
+                  <option value="maintenance">Maintenance</option>
+                  <option value="audit">Audit</option>
+                  <option value="supplier">Supplier</option>
+                </select>
+              </div>
+              <div>
+                <button class="btn-sm" onclick="cancelBuilder()"><i class="fas fa-arrow-left"></i> Back</button>
+                <button class="btn-primary" onclick="saveForm()"><i class="fas fa-save"></i> Save Form</button>
+              </div>
+            </div>
+
+            <div id="builderCanvas" class="builder-canvas"
+                 ondragover="dragOver(event)" ondrop="dropField(event)">
+              <div class="canvas-empty" id="canvasEmpty">
+                <i class="fas fa-hand-point-left"></i>
+                <p>Drag & drop field types here to build your form</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Field Settings -->
+          <div class="field-settings chart-card" id="fieldSettings">
+            <div class="chart-card-header"><h3>Field Settings</h3></div>
+            <div id="fieldSettingsBody">
+              <div class="empty-state" style="font-size:.85rem;">Select a field to edit its settings</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>
+  let fields = [];
+  let selectedFieldIdx = null;
+  let currentModule = '';
+  let forms = [];
+
+  document.addEventListener('DOMContentLoaded', () => {
+    initAppShell('Dynamic Form Builder');
+    const user = checkAuth();
+    if (!user) return;
+    document.getElementById('sidebarUserName').textContent = user.name || '—';
+    document.getElementById('sidebarAvatar').textContent = (user.name || 'U')[0].toUpperCase();
+    document.getElementById('factoryNameSidebar').textContent = user.factory_name || '';
+    loadForms();
+  });
+
+  async function apiGet(url) {
+    const token = localStorage.getItem('access_token');
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) throw new Error(res.statusText);
+    return res.json();
+  }
+  async function apiPost(url, body) {
+    const token = localStorage.getItem('access_token');
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    return res.json();
+  }
+
+  async function loadForms(module = '') {
+    const qs = module ? `?module=${module}` : '';
+    try {
+      forms = await apiGet('/api/forms' + qs);
+    } catch { forms = []; }
+    renderFormsList();
+  }
+
+  function filterModule(mod, btn) {
+    currentModule = mod;
+    document.querySelectorAll('.module-filter-btns .period-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadForms(mod);
+  }
+
+  function renderFormsList() {
+    const el = document.getElementById('formsList');
+    if (!forms.length) {
+      el.innerHTML = '<div class="empty-state"><i class="fas fa-wpforms"></i><p>No forms yet. Create your first form!</p></div>';
+      return;
+    }
+    el.innerHTML = forms.map(f => `
+      <div class="form-card" onclick="openFormDetail(${f.id})">
+        <div class="form-card-header">
+          <span class="module-badge badge-${f.module}">${f.module}</span>
+          <span class="form-card-version">v${f.version}</span>
+        </div>
+        <div class="form-card-title">${f.name}</div>
+        <div class="form-card-meta">
+          <span><i class="fas fa-list"></i> ${f.field_count} fields</span>
+          <span><i class="fas fa-paper-plane"></i> ${f.response_count} responses</span>
+        </div>
+        <div class="form-card-actions">
+          <button class="btn-sm" onclick="event.stopPropagation(); editForm(${f.id})">
+            <i class="fas fa-edit"></i>
+          </button>
+          <button class="btn-sm btn-danger" onclick="event.stopPropagation(); deleteForm(${f.id})">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function showCreateForm() {
+    fields = [];
+    document.getElementById('formName').value = '';
+    document.getElementById('viewFormsList').style.display = 'none';
+    document.getElementById('viewBuilder').style.display = 'block';
+    renderCanvas();
+  }
+
+  function cancelBuilder() {
+    document.getElementById('viewBuilder').style.display = 'none';
+    document.getElementById('viewFormsList').style.display = 'block';
+  }
+
+  // ── Drag & Drop ────────────────────────────────────────────────────────
+  function dragStart(e) {
+    e.dataTransfer.setData('fieldType', e.currentTarget.dataset.type);
+  }
+  function dragOver(e) { e.preventDefault(); }
+  function dropField(e) {
+    e.preventDefault();
+    const type = e.dataTransfer.getData('fieldType');
+    if (!type) return;
+    const label = type.charAt(0).toUpperCase() + type.slice(1) + ' Field';
+    const field = {
+      label,
+      field_key: type + '_' + Date.now(),
+      field_type: type,
+      is_required: false,
+      options: type === 'select' ? ['Option 1', 'Option 2'] : [],
+      validation_rules: {},
+      calculation_formula: type === 'calculated' ? 'quantity_defective / quantity_produced * 100' : null,
+      help_text: '',
+    };
+    fields.push(field);
+    renderCanvas();
+    selectField(fields.length - 1);
+  }
+
+  function renderCanvas() {
+    const canvas = document.getElementById('builderCanvas');
+    const empty = document.getElementById('canvasEmpty');
+    if (!fields.length) {
+      empty.style.display = 'flex';
+      // Remove field elements
+      canvas.querySelectorAll('.canvas-field').forEach(el => el.remove());
+      return;
+    }
+    empty.style.display = 'none';
+    canvas.querySelectorAll('.canvas-field').forEach(el => el.remove());
+
+    fields.forEach((f, idx) => {
+      const el = document.createElement('div');
+      el.className = `canvas-field${selectedFieldIdx === idx ? ' selected' : ''}`;
+      el.onclick = () => selectField(idx);
+      el.innerHTML = `
+        <div class="canvas-field-inner">
+          <div class="field-type-icon"><i class="fas fa-${fieldIcon(f.field_type)}"></i></div>
+          <div class="field-info">
+            <div class="field-label-text">${f.label}</div>
+            <div class="field-type-text">${f.field_type}${f.is_required ? ' · required' : ''}</div>
+          </div>
+          <div class="field-actions-row">
+            <button onclick="event.stopPropagation(); moveField(${idx}, -1)" ${idx===0?'disabled':''}><i class="fas fa-arrow-up"></i></button>
+            <button onclick="event.stopPropagation(); moveField(${idx}, 1)" ${idx===fields.length-1?'disabled':''}><i class="fas fa-arrow-down"></i></button>
+            <button onclick="event.stopPropagation(); removeField(${idx})" class="btn-remove"><i class="fas fa-times"></i></button>
+          </div>
+        </div>
+      `;
+      canvas.appendChild(el);
+    });
+  }
+
+  function fieldIcon(type) {
+    return {text:'font',number:'hashtag',select:'chevron-down',date:'calendar',
+            checkbox:'check-square',textarea:'align-left',calculated:'calculator'}[type] || 'field';
+  }
+
+  function selectField(idx) {
+    selectedFieldIdx = idx;
+    renderCanvas();
+    renderFieldSettings(idx);
+  }
+
+  function renderFieldSettings(idx) {
+    const f = fields[idx];
+    const settingsEl = document.getElementById('fieldSettingsBody');
+    settingsEl.innerHTML = `
+      <div class="settings-group">
+        <label class="settings-label">Label</label>
+        <input class="form-input" value="${f.label}" onchange="updateField(${idx}, 'label', this.value)">
+      </div>
+      <div class="settings-group">
+        <label class="settings-label">Field Key</label>
+        <input class="form-input mono" value="${f.field_key}" onchange="updateField(${idx}, 'field_key', this.value)">
+      </div>
+      <div class="settings-group">
+        <label class="settings-label">
+          <input type="checkbox" ${f.is_required?'checked':''} onchange="updateField(${idx}, 'is_required', this.checked)">
+          Required
+        </label>
+      </div>
+      <div class="settings-group">
+        <label class="settings-label">Help Text</label>
+        <input class="form-input" value="${f.help_text||''}" placeholder="Tooltip for users" onchange="updateField(${idx}, 'help_text', this.value)">
+      </div>
+      ${f.field_type === 'number' ? `
+        <div class="settings-group">
+          <label class="settings-label">Min Value</label>
+          <input class="form-input" type="number" value="${f.validation_rules.min||''}" onchange="updateValidation(${idx}, 'min', this.value)">
+        </div>
+        <div class="settings-group">
+          <label class="settings-label">Max Value</label>
+          <input class="form-input" type="number" value="${f.validation_rules.max||''}" onchange="updateValidation(${idx}, 'max', this.value)">
+        </div>
+      ` : ''}
+      ${f.field_type === 'select' ? `
+        <div class="settings-group">
+          <label class="settings-label">Options (one per line)</label>
+          <textarea class="form-input" rows="5" onchange="updateOptions(${idx}, this.value)">${(f.options||[]).join('\n')}</textarea>
+        </div>
+      ` : ''}
+      ${f.field_type === 'calculated' ? `
+        <div class="settings-group">
+          <label class="settings-label">Formula (Python expression)</label>
+          <input class="form-input mono" value="${f.calculation_formula||''}" placeholder="e.g. quantity_defective / quantity_produced * 100" onchange="updateField(${idx}, 'calculation_formula', this.value)">
+          <small style="color:#64748b">Use field keys as variables</small>
+        </div>
+      ` : ''}
+    `;
+  }
+
+  function updateField(idx, key, val) {
+    fields[idx][key] = val;
+    renderCanvas();
+  }
+  function updateValidation(idx, key, val) {
+    fields[idx].validation_rules = fields[idx].validation_rules || {};
+    fields[idx].validation_rules[key] = val;
+  }
+  function updateOptions(idx, val) {
+    fields[idx].options = val.split('\n').map(s => s.trim()).filter(Boolean);
+  }
+  function moveField(idx, dir) {
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= fields.length) return;
+    [fields[idx], fields[newIdx]] = [fields[newIdx], fields[idx]];
+    selectedFieldIdx = newIdx;
+    renderCanvas();
+    renderFieldSettings(newIdx);
+  }
+  function removeField(idx) {
+    fields.splice(idx, 1);
+    selectedFieldIdx = null;
+    document.getElementById('fieldSettingsBody').innerHTML = '<div class="empty-state">Select a field</div>';
+    renderCanvas();
+  }
+
+  async function saveForm() {
+    const name = document.getElementById('formName').value.trim();
+    if (!name) { alert('Please enter a form name'); return; }
+    if (!fields.length) { alert('Please add at least one field'); return; }
+
+    const payload = {
+      name,
+      module: document.getElementById('formModule').value,
+      fields: fields.map((f, i) => ({ ...f, order_index: i })),
+    };
+
+    try {
+      const result = await apiPost('/api/forms', payload);
+      if (result.id) {
+        alert('Form saved successfully!');
+        cancelBuilder();
+        loadForms();
+      } else {
+        alert(result.error || 'Save failed');
+      }
+    } catch(e) {
+      alert('Error saving form: ' + e.message);
+    }
+  }
+
+  async function deleteForm(id) {
+    if (!confirm('Delete this form?')) return;
+    const token = localStorage.getItem('access_token');
+    await fetch(`/api/forms/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+    loadForms();
+  }
+
+  function openFormDetail(id) {
+    window.location.href = `form-detail.html?id=${id}`;
+  }
+
+  function editForm(id) {
+    // For now, just open detail page with edit mode
+    window.location.href = `form-detail.html?id=${id}&edit=1`;
+  }
+
+  function logout() { localStorage.clear(); window.location.href = 'login.html'; }
+</script>
+<script src="js/utils.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/guards.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

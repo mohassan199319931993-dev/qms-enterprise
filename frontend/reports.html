@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reports — QMS Enterprise</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/enterprise.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.jqueryui.min.css">
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+</head>
+<body class="enterprise-body">
+<div class="app-layout">
+  <aside class="sidebar enterprise-sidebar" id="appSidebar">
+    <div class="sidebar-header">
+      <div class="brand-mark"><span class="brand-q">Q</span></div>
+      <div>
+        <div class="sidebar-title">QMS Enterprise</div>
+        <div class="sidebar-subtitle" id="factoryNameSidebar">—</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <div class="nav-section-title">CORE</div>
+        <a class="nav-item" href="dashboard.html"><i class="fas fa-gauge nav-icon"></i>Dashboard</a>
+        <a class="nav-item" href="analytics.html"><i class="fas fa-chart-area nav-icon"></i>Analytics</a>
+        <a class="nav-item" href="defects.html"><i class="fas fa-bug nav-icon"></i>Defect Records</a>
+        <a class="nav-item" href="forms.html"><i class="fas fa-wpforms nav-icon"></i>Form Builder</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">INTELLIGENCE</div>
+        <a class="nav-item" href="ai.html"><i class="fas fa-brain nav-icon"></i>AI Predictions</a>
+        <a class="nav-item active" href="reports.html"><i class="fas fa-file-chart-column nav-icon"></i>Reports</a>
+        <a class="nav-item" href="library.html"><i class="fas fa-book nav-icon"></i>Quality Library</a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="user-avatar" id="sidebarAvatar">?</div>
+        <div><div class="user-name" id="sidebarUserName">—</div></div>
+      </div>
+      <button class="nav-item logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt nav-icon"></i>Sign Out</button>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <header class="topbar">
+      <div class="topbar-title">Reports</div>
+      <div class="topbar-actions">
+        <button class="btn-primary" onclick="exportExcel()">
+          <i class="fas fa-file-excel"></i> Export Excel
+        </button>
+      </div>
+    </header>
+
+    <div class="page-content">
+      <!-- Report Type Tabs -->
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('daily', this)">Daily Report</button>
+        <button class="tab-btn" onclick="switchTab('monthly', this)">Monthly Report</button>
+        <button class="tab-btn" onclick="switchTab('supplier', this)">Supplier Quality</button>
+      </div>
+
+      <!-- Daily Report -->
+      <div id="tabDaily">
+        <div class="date-filter-row chart-card" style="padding:1rem">
+          <label>Report Date:</label>
+          <input type="date" id="dailyDate" class="date-input" style="margin-left:.5rem">
+          <button class="btn-apply" onclick="loadDailyReport()"><i class="fas fa-sync-alt"></i> Load</button>
+        </div>
+
+        <div class="chart-grid-2" id="dailySummary" style="display:none">
+          <div class="chart-card">
+            <div class="chart-card-header"><h3>Production Summary</h3></div>
+            <table class="summary-table" id="prodSummaryTable"></table>
+          </div>
+          <div class="chart-card">
+            <div class="chart-card-header"><h3>Quality Summary</h3></div>
+            <table class="summary-table" id="qualSummaryTable"></table>
+          </div>
+        </div>
+
+        <div class="chart-card" style="display:none" id="top5Card">
+          <div class="chart-card-header"><h3>Top 5 Defects</h3></div>
+          <table id="top5Table" class="display enterprise-datatable" style="width:100%">
+            <thead><tr><th>Code</th><th>Description</th><th>Category</th><th>Qty Defective</th><th>%</th><th>Cum %</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="chart-card" style="display:none" id="machineCard">
+          <div class="chart-card-header"><h3>Machine Performance</h3></div>
+          <table id="machineTable" class="display enterprise-datatable" style="width:100%">
+            <thead><tr><th>Machine</th><th>Produced</th><th>Defective</th><th>Downtime (min)</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Monthly Report -->
+      <div id="tabMonthly" style="display:none">
+        <div class="date-filter-row chart-card" style="padding:1rem">
+          <label>Year:</label>
+          <input type="number" id="monthlyYear" class="form-input" style="width:90px;margin-left:.5rem" value="">
+          <label style="margin-left:1rem">Month:</label>
+          <select id="monthlyMonth" class="form-input" style="margin-left:.5rem">
+            <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+            <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+            <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+            <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+          </select>
+          <button class="btn-apply" onclick="loadMonthlyReport()"><i class="fas fa-sync-alt"></i> Load</button>
+        </div>
+
+        <div class="kpi-row" id="monthlyKPIs" style="display:none">
+          <div class="kpi-card kpi-ppm"><div class="kpi-label">PPM</div><div class="kpi-value" id="mPPM">—</div></div>
+          <div class="kpi-card kpi-oee"><div class="kpi-label">OEE</div><div class="kpi-value" id="mOEE">—</div></div>
+          <div class="kpi-card kpi-fpy"><div class="kpi-label">FPY</div><div class="kpi-value" id="mFPY">—</div></div>
+          <div class="kpi-card kpi-dr"><div class="kpi-label">Defect Rate</div><div class="kpi-value" id="mDR">—</div></div>
+        </div>
+
+        <div class="chart-grid-2" id="monthlyCharts" style="display:none">
+          <div class="chart-card">
+            <div class="chart-card-header"><h3>Trend</h3></div>
+            <canvas id="monthlyTrendChart" height="220"></canvas>
+          </div>
+          <div class="chart-card">
+            <div class="chart-card-header"><h3>Top Defects</h3></div>
+            <canvas id="monthlyParetoChart" height="220"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Supplier Quality -->
+      <div id="tabSupplier" style="display:none">
+        <div class="date-filter-row chart-card" style="padding:1rem">
+          <label>From:</label>
+          <input type="date" id="supplierStart" class="date-input" style="margin-left:.5rem">
+          <label style="margin-left:1rem">To:</label>
+          <input type="date" id="supplierEnd" class="date-input" style="margin-left:.5rem">
+          <button class="btn-apply" onclick="loadSupplierReport()"><i class="fas fa-sync-alt"></i> Load</button>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-header"><h3>Material Batch Quality Ratings</h3></div>
+          <table id="supplierTable" class="display enterprise-datatable" style="width:100%">
+            <thead><tr><th>Material Batch</th><th>Incidents</th><th>Total Defective</th><th>Total Produced</th><th>Defect Rate %</th><th>Quality Rating</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>
+  let top5DT, machineDT, supplierDT;
+  let mTrendChart, mParetoChart;
+
+  document.addEventListener('DOMContentLoaded', () => {
+    initAppShell('Reports & Analytics');
+    const user = checkAuth();
+    if (!user) return;
+    document.getElementById('sidebarUserName').textContent = user.name || '—';
+    document.getElementById('sidebarAvatar').textContent = (user.name || 'U')[0].toUpperCase();
+    document.getElementById('factoryNameSidebar').textContent = user.factory_name || '';
+
+    const now = new Date();
+    document.getElementById('dailyDate').value = now.toISOString().slice(0,10);
+    document.getElementById('monthlyYear').value = now.getFullYear();
+    document.getElementById('monthlyMonth').value = now.getMonth() + 1;
+
+    const past = new Date(now - 30 * 864e5);
+    document.getElementById('supplierStart').value = past.toISOString().slice(0,10);
+    document.getElementById('supplierEnd').value = now.toISOString().slice(0,10);
+
+    loadDailyReport();
+  });
+
+  function switchTab(tab, btn) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    ['tabDaily','tabMonthly','tabSupplier'].forEach(id => {
+      document.getElementById(id).style.display = id === 'tab' + tab.charAt(0).toUpperCase() + tab.slice(1) ? 'block' : 'none';
+    });
+  }
+
+  async function apiGet(url) {
+    const token = localStorage.getItem('access_token');
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    return res.json();
+  }
+
+  async function loadDailyReport() {
+    const date = document.getElementById('dailyDate').value;
+    let data;
+    try {
+      data = await apiGet(`/api/reports/daily?date=${date}`);
+    } catch {
+      data = getDemoDaily();
+    }
+    renderDailyReport(data);
+  }
+
+  function renderDailyReport(data) {
+    document.getElementById('dailySummary').style.display = 'grid';
+    document.getElementById('top5Card').style.display = 'block';
+    document.getElementById('machineCard').style.display = 'block';
+
+    // Production summary table
+    const ps = data.production_summary || {};
+    document.getElementById('prodSummaryTable').innerHTML = Object.entries(ps).map(([k,v]) => `
+      <tr><td class="summary-key">${k.replace(/_/g,' ')}</td><td class="summary-val">${v}</td></tr>
+    `).join('');
+
+    // Quality summary table
+    const qs = data.quality_summary || {};
+    document.getElementById('qualSummaryTable').innerHTML = Object.entries(qs).map(([k,v]) => `
+      <tr><td class="summary-key">${k.replace(/_/g,' ')}</td><td class="summary-val">${v}</td></tr>
+    `).join('');
+
+    // Top 5 defects
+    const tbody = document.querySelector('#top5Table tbody');
+    tbody.innerHTML = (data.top_defects || []).map(d => `
+      <tr>
+        <td><code>${d.code}</code></td>
+        <td>${d.description}</td>
+        <td>${d.category||'—'}</td>
+        <td>${d.total_defective}</td>
+        <td>${d.percentage}%</td>
+        <td>${d.cumulative_pct}%</td>
+      </tr>
+    `).join('');
+    if (top5DT) { top5DT.destroy(); }
+    top5DT = $('#top5Table').DataTable({ pageLength: 5, info: false });
+
+    // Machine performance
+    const mbody = document.querySelector('#machineTable tbody');
+    mbody.innerHTML = (data.machine_performance || []).map(m => `
+      <tr>
+        <td><strong>${m.code}</strong> ${m.name}</td>
+        <td>${m.produced||0}</td>
+        <td>${m.defective||0}</td>
+        <td>${m.downtime||0}</td>
+      </tr>
+    `).join('');
+    if (machineDT) { machineDT.destroy(); }
+    machineDT = $('#machineTable').DataTable({ pageLength: 10 });
+  }
+
+  async function loadMonthlyReport() {
+    const year = document.getElementById('monthlyYear').value;
+    const month = document.getElementById('monthlyMonth').value;
+    let data;
+    try {
+      data = await apiGet(`/api/reports/monthly?year=${year}&month=${month}`);
+    } catch {
+      data = getDemoMonthly();
+    }
+    renderMonthlyReport(data);
+  }
+
+  function renderMonthlyReport(data) {
+    document.getElementById('monthlyKPIs').style.display = 'grid';
+    document.getElementById('monthlyCharts').style.display = 'grid';
+
+    const m = data.overall_metrics || {};
+    document.getElementById('mPPM').textContent = (m.ppm||0).toLocaleString();
+    document.getElementById('mOEE').textContent = (m.oee_pct||0).toFixed(1) + '%';
+    document.getElementById('mFPY').textContent = (m.fpy_pct||0).toFixed(1) + '%';
+    document.getElementById('mDR').textContent = (m.defect_rate_pct||0).toFixed(2) + '%';
+
+    if (mTrendChart) mTrendChart.destroy();
+    const ctx1 = document.getElementById('monthlyTrendChart').getContext('2d');
+    const trend = data.trend || [];
+    mTrendChart = new Chart(ctx1, {
+      type: 'line',
+      data: {
+        labels: trend.map(d => d.period),
+        datasets: [{ label: 'PPM', data: trend.map(d => d.ppm),
+          borderColor: '#22d3ee', backgroundColor: 'rgba(34,211,238,0.1)',
+          fill: true, tension: 0.4, borderWidth: 2 }]
+      },
+      options: { responsive: true, plugins: { legend: { display: false } },
+        scales: { x: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } },
+                  y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } } } }
+    });
+
+    if (mParetoChart) mParetoChart.destroy();
+    const ctx2 = document.getElementById('monthlyParetoChart').getContext('2d');
+    const pareto = (data.pareto || []).slice(0, 8);
+    mParetoChart = new Chart(ctx2, {
+      type: 'bar',
+      data: {
+        labels: pareto.map(d => d.code),
+        datasets: [{ label: 'Defects', data: pareto.map(d => d.total_defective),
+          backgroundColor: 'rgba(239,68,68,0.7)', borderRadius: 4 }]
+      },
+      options: { responsive: true, plugins: { legend: { display: false } },
+        scales: { x: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } },
+                  y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, beginAtZero: true } } }
+    });
+  }
+
+  async function loadSupplierReport() {
+    const start = document.getElementById('supplierStart').value;
+    const end = document.getElementById('supplierEnd').value;
+    let data;
+    try {
+      data = await apiGet(`/api/reports/supplier?start_date=${start}&end_date=${end}`);
+    } catch { data = getDemoSupplier(); }
+
+    const tbody = document.querySelector('#supplierTable tbody');
+    tbody.innerHTML = (Array.isArray(data) ? data : []).map(s => `
+      <tr>
+        <td><code>${s.material_batch||'—'}</code></td>
+        <td>${s.incident_count}</td>
+        <td>${s.total_defective}</td>
+        <td>${s.total_produced}</td>
+        <td>${s.defect_rate_pct}%</td>
+        <td>
+          <div class="quality-rating-bar">
+            <div class="qr-fill" style="width:${s.quality_rating}%;background:${s.quality_rating>95?'#22d3ee':s.quality_rating>80?'#f59e0b':'#ef4444'}"></div>
+          </div>
+          ${s.quality_rating}%
+        </td>
+      </tr>
+    `).join('');
+    if (supplierDT) { supplierDT.destroy(); }
+    supplierDT = $('#supplierTable').DataTable({ pageLength: 15 });
+  }
+
+  function exportExcel() {
+    const token = localStorage.getItem('access_token');
+    const activeTab = document.querySelector('.tab-btn.active').textContent.trim().toLowerCase();
+    const type = activeTab.includes('daily') ? 'daily' : activeTab.includes('monthly') ? 'monthly' : 'daily';
+    window.open(`/api/reports/export?type=${type}&format=excel&token=${token}`);
+  }
+
+  // Demo data generators
+  function getDemoDaily() {
+    return {
+      report_date: new Date().toISOString().slice(0,10),
+      production_summary: { total_runs: 12, planned_quantity: 5000, actual_quantity: 4850, total_downtime_minutes: 45, machines_active: 6 },
+      quality_summary: { total_defective: 58, total_produced: 4850, defect_records: 14, ppm: 1196, defect_rate_pct: 1.2 },
+      top_defects: [
+        {code:'D-101',description:'Surface Scratch',category:'Cosmetic',total_defective:22,percentage:37.9,cumulative_pct:37.9},
+        {code:'D-202',description:'Dimensional Error',category:'Critical',total_defective:18,percentage:31.0,cumulative_pct:68.9},
+        {code:'D-303',description:'Assembly Defect',category:'Major',total_defective:10,percentage:17.2,cumulative_pct:86.1},
+        {code:'D-404',description:'Paint Defect',category:'Minor',total_defective:5,percentage:8.6,cumulative_pct:94.7},
+        {code:'D-505',description:'Crack',category:'Critical',total_defective:3,percentage:5.1,cumulative_pct:100},
+      ],
+      machine_performance: [
+        {code:'M-01',name:'CNC Press',produced:980,defective:12,downtime:10},
+        {code:'M-02',name:'Assembly Station',produced:850,defective:8,downtime:5},
+        {code:'M-03',name:'Welding Unit',produced:1200,defective:25,downtime:20},
+        {code:'M-04',name:'Paint Line',produced:820,defective:13,downtime:10},
+      ]
+    };
+  }
+
+  function getDemoMonthly() {
+    const trend = Array.from({length:30},(_, i) => ({
+      period: new Date(Date.now()-(29-i)*864e5).toISOString().slice(0,10),
+      ppm: 900+Math.random()*600,
+    }));
+    return {
+      period: '2025-01',
+      overall_metrics: { ppm: 1150, oee_pct: 82.4, fpy_pct: 99.15, defect_rate_pct: 0.12 },
+      trend,
+      pareto: [
+        {code:'D-101',total_defective:412},{code:'D-202',total_defective:298},
+        {code:'D-303',total_defective:187},{code:'D-404',total_defective:134},
+        {code:'D-505',total_defective:89},{code:'D-606',total_defective:86},
+      ],
+    };
+  }
+
+  function getDemoSupplier() {
+    return [
+      {material_batch:'BATCH-A01',incident_count:3,total_defective:45,total_produced:5000,defect_rate_pct:'0.90',quality_rating:'99.10'},
+      {material_batch:'BATCH-B02',incident_count:8,total_defective:210,total_produced:4800,defect_rate_pct:'4.38',quality_rating:'95.63'},
+      {material_batch:'BATCH-C03',incident_count:1,total_defective:12,total_produced:3000,defect_rate_pct:'0.40',quality_rating:'99.60'},
+      {material_batch:'BATCH-D04',incident_count:15,total_defective:680,total_produced:6200,defect_rate_pct:'10.97',quality_rating:'89.03'},
+    ];
+  }
+
+  function logout() { localStorage.clear(); window.location.href = 'login.html'; }
+</script>
+<script src="js/utils.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/guards.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

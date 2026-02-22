@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SPC Control — QMS Quality 4.0</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/enterprise.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body class="enterprise-body">
+<div class="app-layout">
+  <aside class="sidebar enterprise-sidebar" id="appSidebar"></aside>
+  <main class="main-content">
+    <header class="topbar">
+      <div class="topbar-title"><span id="topbarTitle"></span></div>
+      <div class="topbar-actions">
+        <span id="topbarFactory" class="badge badge-primary"></span>
+      </div>
+    </header>
+    <div class="page-content">
+
+      <!-- Controls -->
+      <div class="chart-card" style="padding:1rem">
+        <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end">
+          <div>
+            <label style="font-size:.7rem;color:var(--text-muted);display:block;margin-bottom:.25rem">MACHINE</label>
+            <select id="spcMachine" class="form-input" style="width:180px">
+              <option value="1">M-01 — CNC Press</option>
+              <option value="2">M-02 — Assembly</option>
+              <option value="3">M-03 — Welding</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:.7rem;color:var(--text-muted);display:block;margin-bottom:.25rem">METRIC</label>
+            <select id="spcMetric" class="form-input" style="width:140px">
+              <option value="temperature">Temperature</option>
+              <option value="vibration">Vibration</option>
+              <option value="pressure">Pressure</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:.7rem;color:var(--text-muted);display:block;margin-bottom:.25rem">USL</label>
+            <input id="spcUSL" class="form-input" type="number" value="55" style="width:80px">
+          </div>
+          <div>
+            <label style="font-size:.7rem;color:var(--text-muted);display:block;margin-bottom:.25rem">LSL</label>
+            <input id="spcLSL" class="form-input" type="number" value="45" style="width:80px">
+          </div>
+          <button class="btn-primary" onclick="loadAll()"><i class="fas fa-chart-line"></i> Analyze</button>
+        </div>
+      </div>
+
+      <!-- Cp/Cpk tiles -->
+      <div class="cpk-grid">
+        <div class="cpk-tile">
+          <div class="cpk-tile-label">Cp</div>
+          <div class="cpk-tile-value" id="cpVal" style="color:var(--cyan)">—</div>
+          <div class="cpk-tile-status">Process Potential</div>
+        </div>
+        <div class="cpk-tile">
+          <div class="cpk-tile-label">Cpk</div>
+          <div class="cpk-tile-value" id="cpkVal">—</div>
+          <div class="cpk-tile-status" id="cpkStatus">—</div>
+        </div>
+        <div class="cpk-tile">
+          <div class="cpk-tile-label">Sigma</div>
+          <div class="cpk-tile-value" id="sigmaVal" style="color:var(--violet)">—</div>
+          <div class="cpk-tile-status">Process Std Dev</div>
+        </div>
+        <div class="cpk-tile">
+          <div class="cpk-tile-label">Capable?</div>
+          <div class="cpk-tile-value" id="capableVal">—</div>
+          <div class="cpk-tile-status">Cpk ≥ 1.33</div>
+        </div>
+      </div>
+
+      <!-- X-bar Chart -->
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <h3>X̄-bar Control Chart</h3>
+          <span class="spc-status-badge" id="xbarStatus">Loading...</span>
+        </div>
+        <canvas id="xbarChart" height="160"></canvas>
+      </div>
+
+      <!-- R Chart -->
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <h3>R-Chart (Range)</h3>
+          <span class="chart-badge">Sample variability</span>
+        </div>
+        <canvas id="rChart" height="130"></canvas>
+      </div>
+
+      <!-- Process shift detection -->
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <h3><i class="fas fa-exclamation-triangle" style="color:var(--amber)"></i> Nelson Rules Analysis</h3>
+          <button class="btn-sm" onclick="checkShift()"><i class="fas fa-search"></i> Check</button>
+        </div>
+        <div id="shiftResult" style="padding:1rem">
+          <div class="empty-state">Click "Check" to run Nelson rule analysis</div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>
+let xbarChart, rChart;
+
+document.addEventListener('DOMContentLoaded', () => {
+  const user = initAppShell('SPC Statistical Process Control');
+  if (!user) return;
+  loadAll();
+});
+
+async function loadAll() { await Promise.allSettled([loadCpk(), loadControlChart()]); }
+
+async function loadCpk() {
+  const machine_id = document.getElementById('spcMachine').value;
+  const metric = document.getElementById('spcMetric').value;
+  const usl = document.getElementById('spcUSL').value;
+  const lsl = document.getElementById('spcLSL').value;
+  let d;
+  try {
+    d = await qmsApi(`/api/q40/spc/cpk?machine_id=${machine_id}&metric=${metric}&usl=${usl}&lsl=${lsl}`);
+  } catch {
+    d = {cp:1.45,cpk:1.24,cpu:1.31,cpl:1.17,mean:50.12,sigma:1.38,process_capable:false,interpretation:'Marginally capable — improvement recommended'};
+  }
+  document.getElementById('cpVal').textContent = fmt(d.cp, 2);
+  const cpkEl = document.getElementById('cpkVal');
+  cpkEl.textContent = fmt(d.cpk, 2);
+  cpkEl.style.color = d.cpk >= 1.33 ? 'var(--emerald)' : d.cpk >= 1.0 ? 'var(--amber)' : 'var(--red)';
+  document.getElementById('sigmaVal').textContent = fmt(d.sigma, 4);
+  const cap = document.getElementById('capableVal');
+  cap.textContent = d.process_capable ? '✓ YES' : '✗ NO';
+  cap.style.color = d.process_capable ? 'var(--emerald)' : 'var(--red)';
+  document.getElementById('cpkStatus').textContent = d.interpretation || '';
+}
+
+async function loadControlChart() {
+  const machine_id = document.getElementById('spcMachine').value;
+  const metric = document.getElementById('spcMetric').value;
+  let d;
+  try { d = await qmsApi(`/api/q40/spc/control-chart?machine_id=${machine_id}&metric=${metric}`); }
+  catch {
+    d = {xbar_chart:{ucl:53.5,lcl:46.5,center:50,points:Array.from({length:20},(_,i)=>({x:i,y:49+Math.random()*3,out_of_control:i===5||i===13}))},r_chart:{ucl:3.6,lcl:0,center:1.8,points:Array.from({length:20},(_,i)=>({x:i,y:Math.abs(1.8+Math.random()-0.5),out_of_control:false}))},process_stable:false,out_of_control_points:2};
+  }
+
+  const oocCount = d.out_of_control_points || 0;
+  const badge = document.getElementById('xbarStatus');
+  badge.className = 'spc-status-badge ' + (oocCount === 0 ? 'spc-in-control' : 'spc-out-control');
+  badge.textContent = oocCount === 0 ? '✓ In Control' : `⚠ ${oocCount} OOC Points`;
+
+  renderControlChart('xbarChart', d.xbar_chart, 'X̄', '#22d3ee');
+  renderControlChart('rChart', d.r_chart, 'Range', '#a78bfa');
+}
+
+function renderControlChart(canvasId, chartData, label, color) {
+  const existing = canvasId === 'xbarChart' ? xbarChart : rChart;
+  if (existing) existing.destroy();
+
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  const pts = chartData.points || [];
+  const chart = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels: pts.map(p=>p.x+1),
+      datasets:[
+        {label:label,data:pts.map(p=>p.y),borderColor:color,backgroundColor:'transparent',borderWidth:2,pointRadius:pts.map(p=>p.out_of_control?6:3),pointBackgroundColor:pts.map(p=>p.out_of_control?'#ef4444':color),pointBorderColor:pts.map(p=>p.out_of_control?'#ef4444':color)},
+        {label:'UCL',data:Array(pts.length).fill(chartData.ucl),borderColor:'rgba(239,68,68,0.7)',borderDash:[6,3],borderWidth:1.5,pointRadius:0,backgroundColor:'transparent'},
+        {label:'CL',data:Array(pts.length).fill(chartData.center),borderColor:'rgba(100,116,139,0.5)',borderDash:[4,4],borderWidth:1,pointRadius:0,backgroundColor:'transparent'},
+        {label:'LCL',data:Array(pts.length).fill(chartData.lcl),borderColor:'rgba(239,68,68,0.7)',borderDash:[6,3],borderWidth:1.5,pointRadius:0,backgroundColor:'transparent'},
+      ]
+    },
+    options:{responsive:true,plugins:{legend:{labels:{color:'#94a3b8',font:{size:11}}}},scales:{x:{ticks:{color:'#64748b'},grid:{color:'#1a2e45'}},y:{ticks:{color:'#64748b'},grid:{color:'#1a2e45'}}}}
+  });
+  if (canvasId === 'xbarChart') xbarChart = chart; else rChart = chart;
+}
+
+async function checkShift() {
+  const machine_id = document.getElementById('spcMachine').value;
+  const metric = document.getElementById('spcMetric').value;
+  let d;
+  try { d = await qmsApi(`/api/q40/spc/shift-detect?machine_id=${machine_id}&metric=${metric}`); }
+  catch { d = {shift_detected:true,violations:[{rule:2,type:'9 points above mean',severity:'high'},{rule:3,type:'6 points trending up',severity:'medium'}],message:'2 pattern violation(s) detected'}; }
+
+  const el = document.getElementById('shiftResult');
+  if (!d.shift_detected) {
+    el.innerHTML = '<div class="empty-state" style="color:var(--emerald)"><i class="fas fa-check-circle"></i> Process is stable — no Nelson rule violations detected</div>';
+    return;
+  }
+  el.innerHTML = `
+    <div style="margin-bottom:.75rem;color:var(--amber)"><i class="fas fa-triangle-exclamation"></i> <strong>${d.message}</strong></div>
+    ${(d.violations||[]).map(v=>`
+      <div style="display:flex;align-items:center;gap:.75rem;padding:.5rem .75rem;background:var(--bg-raised);border-radius:6px;margin-bottom:.35rem;border:1px solid ${v.severity==='high'?'rgba(245,158,11,.3)':'var(--border)'}">
+        <span style="font-family:var(--font-mono);font-size:.72rem;color:var(--amber)">Rule ${v.rule}</span>
+        <span style="flex:1;font-size:.82rem">${v.type}</span>
+        <span style="font-family:var(--font-mono);font-size:.68rem;color:${v.severity==='high'?'var(--red)':'var(--amber)'}">${v.severity.toUpperCase()}</span>
+      </div>
+    `).join('')}
+    <div style="font-size:.75rem;color:var(--text-muted);margin-top:.5rem">Action: Investigate process changes, machine settings, or material batch at violation positions.</div>
+  `;
+}
+</script>
+<script src="js/utils.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/guards.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

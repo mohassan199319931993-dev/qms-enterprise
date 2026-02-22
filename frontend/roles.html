@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Roles & Permissions — QMS Platform</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo"><i class="fas fa-shield-halved"></i></div>
+      <div>
+        <div class="sidebar-title">QMS Platform</div>
+        <div class="sidebar-subtitle" id="factoryNameSidebar">—</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <a class="nav-item" href="dashboard.html"><i class="fas fa-gauge nav-icon"></i> Dashboard</a>
+        <a class="nav-item active" href="roles.html"><i class="fas fa-user-shield nav-icon"></i> Roles</a>
+        <a class="nav-item" href="profile.html"><i class="fas fa-user-circle nav-icon"></i> My Profile</a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="user-avatar" id="sidebarAvatar">?</div>
+        <div>
+          <div class="user-name" id="sidebarUserName">—</div>
+          <div class="user-role" id="sidebarUserRole">—</div>
+        </div>
+      </div>
+      <button class="nav-item" onclick="logout()" style="margin-top:.5rem; color:var(--danger);">
+        <i class="fas fa-sign-out-alt nav-icon"></i> Sign Out
+      </button>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <header class="topbar">
+      <div class="topbar-title">Roles & Permissions</div>
+      <div class="topbar-actions">
+        <button class="btn btn-primary btn-sm" onclick="openCreateModal()" data-require-perm="roles.create">
+          <i class="fas fa-plus"></i> New Role
+        </button>
+      </div>
+    </header>
+
+    <div class="page-content">
+      <!-- Roles Table -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Factory Roles</span>
+          <span class="text-muted text-sm" id="rolesCount">0 roles</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Role Name</th>
+                <th>Description</th>
+                <th>Users</th>
+                <th>Permissions</th>
+                <th>Type</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="rolesTableBody">
+              <tr><td colspan="6" class="text-center text-muted" style="padding:2rem;">Loading roles...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Create/Edit Role Modal -->
+<div class="modal-overlay" id="roleModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modalTitle">Create Role</span>
+      <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div id="modalAlert" class="alert alert-danger" style="display:none"></div>
+
+      <div class="form-group">
+        <label class="form-label" for="roleName">Role Name <span class="required">*</span></label>
+        <div class="input-wrap">
+          <i class="fas fa-user-shield input-icon"></i>
+          <input type="text" id="roleName" class="form-input" placeholder="e.g. Quality Inspector">
+        </div>
+        <span class="field-error"></span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="roleDesc">Description</label>
+        <div class="input-wrap">
+          <i class="fas fa-align-left input-icon"></i>
+          <input type="text" id="roleDesc" class="form-input" placeholder="Brief description of this role">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Permissions</label>
+        <div id="permissionsContainer">
+          <p class="text-muted text-sm">Loading permissions...</p>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="saveRoleBtn" onclick="saveRole()">
+        <span class="btn-text"><i class="fas fa-save"></i> Save Role</span>
+        <div class="spinner"></div>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" style="color:var(--danger);">Delete Role</span>
+      <button class="modal-close" onclick="closeDeleteModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <p>Are you sure you want to delete the role <strong id="deleteRoleName"></strong>?</p>
+      <p class="text-muted text-sm mt-1">This action cannot be undone. All users with this role will have their role removed.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeDeleteModal()">Cancel</button>
+      <button class="btn btn-danger" id="confirmDeleteBtn" onclick="confirmDelete()">
+        <span class="btn-text"><i class="fas fa-trash"></i> Delete</span>
+        <div class="spinner"></div>
+      </button>
+    </div>
+  </div>
+</div>
+<script>
+  let currentUser = null;
+  let allPermissions = [];
+  let allRoles = [];
+  let selectedPermIds = new Set();
+  let editingRoleId = null;
+  let deletingRoleId = null;
+
+  // ── Init ─────────────────────────────────────────────────
+  (async () => {
+    currentUser = await requireAuth(['roles.view']);
+    if (!currentUser) return;
+
+    document.getElementById('sidebarAvatar').textContent = getInitials(currentUser.name);
+    document.getElementById('sidebarUserName').textContent = currentUser.name;
+    document.getElementById('sidebarUserRole').textContent = currentUser.role?.name || '';
+    document.getElementById('factoryNameSidebar').textContent = currentUser.factory?.name || '';
+
+    applyPermissionVisibility();
+    await Promise.all([loadRoles(), loadPermissions()]);
+  })();
+
+  // ── Load Data ─────────────────────────────────────────────
+  async function loadRoles() {
+    const { data, ok } = await API.getRoles();
+    if (!ok) { showToast('Failed to load roles', 'error'); return; }
+    allRoles = data;
+    renderRoles(data);
+  }
+
+  async function loadPermissions() {
+    const { data, ok } = await API.getPermissions();
+    if (!ok) return;
+    allPermissions = data.permissions || [];
+    renderPermissionsEditor();
+  }
+
+  // ── Render Roles ─────────────────────────────────────────
+  function renderRoles(roles) {
+    const tbody = document.getElementById('rolesTableBody');
+    document.getElementById('rolesCount').textContent = `${roles.length} roles`;
+
+    if (roles.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted" style="padding:2rem;">No roles found. Create one to get started.</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = roles.map(role => `
+      <tr>
+        <td>
+          <div class="flex items-center gap-1">
+            <i class="fas fa-user-shield" style="color:var(--primary);"></i>
+            <strong>${role.name}</strong>
+          </div>
+        </td>
+        <td class="text-muted">${role.description || '—'}</td>
+        <td><span class="badge badge-gray">${role.user_count} users</span></td>
+        <td>${(role.permissions || []).slice(0,3).map(p =>
+          `<span class="badge badge-primary" style="margin:1px;">${p.name}</span>`
+        ).join('') + (role.permissions?.length > 3 ? `<span class="badge badge-gray">+${role.permissions.length-3}</span>` : '')}</td>
+        <td>${role.is_system_role ? '<span class="badge badge-info">System</span>' : '<span class="badge badge-gray">Custom</span>'}</td>
+        <td>
+          <div class="flex gap-1">
+            ${!role.is_system_role ? `
+              <button class="btn btn-outline btn-sm btn-icon" title="Edit" onclick="openEditModal(${role.id})">
+                <i class="fas fa-pen"></i>
+              </button>
+              <button class="btn btn-danger btn-sm btn-icon" title="Delete" onclick="openDeleteModal(${role.id}, '${role.name}')">
+                <i class="fas fa-trash"></i>
+              </button>
+            ` : '<span class="text-muted text-sm">Protected</span>'}
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  // ── Permissions Editor ───────────────────────────────────
+  function renderPermissionsEditor() {
+    const container = document.getElementById('permissionsContainer');
+    if (!allPermissions.length) { container.innerHTML = '<p class="text-muted text-sm">No permissions available</p>'; return; }
+
+    // Group by module
+    const byModule = {};
+    allPermissions.forEach(p => {
+      if (!byModule[p.module]) byModule[p.module] = [];
+      byModule[p.module].push(p);
+    });
+
+    container.innerHTML = Object.entries(byModule).map(([module, perms]) => `
+      <div class="perm-group">
+        <div class="perm-group-title"><i class="fas fa-cube"></i> ${module}</div>
+        <div class="perm-list">
+          ${perms.map(p => `
+            <label class="perm-item${selectedPermIds.has(p.id) ? ' selected' : ''}" data-id="${p.id}">
+              <input type="checkbox" ${selectedPermIds.has(p.id) ? 'checked' : ''} style="display:none">
+              <i class="fas fa-${selectedPermIds.has(p.id) ? 'check' : 'plus'}"></i>
+              ${p.action}
+            </label>
+          `).join('')}
+        </div>
+      </div>
+    `).join('');
+
+    container.querySelectorAll('.perm-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const id = parseInt(item.dataset.id);
+        const icon = item.querySelector('i');
+        if (selectedPermIds.has(id)) {
+          selectedPermIds.delete(id);
+          item.classList.remove('selected');
+          icon.className = 'fas fa-plus';
+        } else {
+          selectedPermIds.add(id);
+          item.classList.add('selected');
+          icon.className = 'fas fa-check';
+        }
+      });
+    });
+  }
+
+  // ── Modal: Create ────────────────────────────────────────
+  function openCreateModal() {
+    editingRoleId = null;
+    selectedPermIds.clear();
+    document.getElementById('modalTitle').textContent = 'Create Role';
+    document.getElementById('roleName').value = '';
+    document.getElementById('roleDesc').value = '';
+    document.getElementById('modalAlert').style.display = 'none';
+    renderPermissionsEditor();
+    document.getElementById('roleModal').classList.add('show');
+  }
+
+  function openEditModal(id) {
+    const role = allRoles.find(r => r.id === id);
+    if (!role) return;
+    editingRoleId = id;
+    selectedPermIds = new Set((role.permissions || []).map(p => p.id));
+    document.getElementById('modalTitle').textContent = 'Edit Role';
+    document.getElementById('roleName').value = role.name;
+    document.getElementById('roleDesc').value = role.description || '';
+    document.getElementById('modalAlert').style.display = 'none';
+    renderPermissionsEditor();
+    document.getElementById('roleModal').classList.add('show');
+  }
+
+  function closeModal() { document.getElementById('roleModal').classList.remove('show'); }
+
+  // ── Save Role ────────────────────────────────────────────
+  async function saveRole() {
+    const btn = document.getElementById('saveRoleBtn');
+    const name = document.getElementById('roleName').value.trim();
+    const desc = document.getElementById('roleDesc').value.trim();
+
+    if (!name) {
+      document.getElementById('modalAlert').textContent = 'Role name is required';
+      document.getElementById('modalAlert').style.display = 'flex';
+      return;
+    }
+
+    const payload = { name, description: desc, permission_ids: Array.from(selectedPermIds) };
+    setButtonLoading(btn, true);
+
+    try {
+      let res;
+      if (editingRoleId) {
+        res = await API.updateRole(editingRoleId, payload);
+      } else {
+        res = await API.createRole(payload);
+      }
+      if (!res.ok) throw new Error(res.data.error || 'Save failed');
+
+      closeModal();
+      showToast(`Role ${editingRoleId ? 'updated' : 'created'} successfully!`, 'success');
+      await loadRoles();
+    } catch (err) {
+      document.getElementById('modalAlert').textContent = err.message;
+      document.getElementById('modalAlert').style.display = 'flex';
+    } finally {
+      setButtonLoading(btn, false);
+    }
+  }
+
+  // ── Delete Modal ─────────────────────────────────────────
+  function openDeleteModal(id, name) {
+    deletingRoleId = id;
+    document.getElementById('deleteRoleName').textContent = name;
+    document.getElementById('deleteModal').classList.add('show');
+  }
+
+  function closeDeleteModal() { document.getElementById('deleteModal').classList.remove('show'); }
+
+  async function confirmDelete() {
+    if (!deletingRoleId) return;
+    const btn = document.getElementById('confirmDeleteBtn');
+    setButtonLoading(btn, true);
+    try {
+      const { ok, data } = await API.deleteRole(deletingRoleId);
+      if (!ok) throw new Error(data.error || 'Delete failed');
+      closeDeleteModal();
+      showToast('Role deleted', 'success');
+      await loadRoles();
+    } catch (err) {
+      closeDeleteModal();
+      showToast(err.message, 'error');
+    } finally {
+      setButtonLoading(btn, false);
+    }
+  }
+
+  // Close modals on overlay click
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        overlay.classList.remove('show');
+      }
+    });
+  });
+</script>
+<script src="js/utils.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/guards.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

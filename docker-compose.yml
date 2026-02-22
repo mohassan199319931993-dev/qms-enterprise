@@ -1,0 +1,62 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: qms_db
+      POSTGRES_USER: qms_user
+      POSTGRES_PASSWORD: qms_pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ./database/schema_v2.sql:/docker-entrypoint-initdb.d/02_schema_v2.sql
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/03_seed.sql
+      - ./database/schema_v3.sql:/docker-entrypoint-initdb.d/04_schema_v3.sql
+      - ./database/schema_v4.sql:/docker-entrypoint-initdb.d/05_schema_v4.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qms_user -d qms_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: ./backend
+    environment:
+      FLASK_ENV: production
+      DATABASE_URL: postgresql://qms_user:qms_pass@db:5432/qms_db
+      JWT_SECRET_KEY: change-me-in-production-jwt-secret-32chars
+      SECRET_KEY: change-me-in-production-flask-secret
+      REDIS_URL: redis://redis:6379/0
+      CORS_ORIGINS: http://localhost,http://localhost:80
+      MODEL_DIR: /app/ai_models
+    volumes:
+      - ai_models:/app/ai_models
+    ports:
+      - "5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  ai_models:

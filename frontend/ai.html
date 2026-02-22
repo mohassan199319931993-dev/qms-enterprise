@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Predictions — QMS Enterprise</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/enterprise.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body class="enterprise-body">
+<div class="app-layout">
+  <aside class="sidebar enterprise-sidebar" id="appSidebar">
+    <div class="sidebar-header">
+      <div class="brand-mark"><span class="brand-q">Q</span></div>
+      <div>
+        <div class="sidebar-title">QMS Enterprise</div>
+        <div class="sidebar-subtitle" id="factoryNameSidebar">—</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <div class="nav-section-title">CORE</div>
+        <a class="nav-item" href="dashboard.html"><i class="fas fa-gauge nav-icon"></i>Dashboard</a>
+        <a class="nav-item" href="analytics.html"><i class="fas fa-chart-area nav-icon"></i>Analytics</a>
+        <a class="nav-item" href="defects.html"><i class="fas fa-bug nav-icon"></i>Defect Records</a>
+        <a class="nav-item" href="forms.html"><i class="fas fa-wpforms nav-icon"></i>Form Builder</a>
+      </div>
+      <div class="nav-section">
+        <div class="nav-section-title">INTELLIGENCE</div>
+        <a class="nav-item active" href="ai.html"><i class="fas fa-brain nav-icon"></i>AI Predictions</a>
+        <a class="nav-item" href="reports.html"><i class="fas fa-file-chart-column nav-icon"></i>Reports</a>
+        <a class="nav-item" href="library.html"><i class="fas fa-book nav-icon"></i>Quality Library</a>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="user-avatar" id="sidebarAvatar">?</div>
+        <div><div class="user-name" id="sidebarUserName">—</div></div>
+      </div>
+      <button class="nav-item logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt nav-icon"></i>Sign Out</button>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <header class="topbar">
+      <div class="topbar-title">AI Quality Intelligence</div>
+      <div class="topbar-actions">
+        <button class="btn-primary" id="trainBtn" onclick="trainModel()">
+          <i class="fas fa-dumbbell"></i> Train Model
+        </button>
+      </div>
+    </header>
+
+    <div class="page-content">
+      <!-- Model Status -->
+      <div class="kpi-row">
+        <div class="kpi-card kpi-oee">
+          <div class="kpi-label">Model Status</div>
+          <div class="kpi-value" id="modelStatus" style="font-size:1.1rem">—</div>
+          <div class="kpi-sub">RandomForest Classifier</div>
+        </div>
+        <div class="kpi-card kpi-fpy">
+          <div class="kpi-label">Model Accuracy</div>
+          <div class="kpi-value" id="modelAccuracy">—</div>
+          <div class="kpi-sub">Test set accuracy</div>
+        </div>
+        <div class="kpi-card kpi-ppm">
+          <div class="kpi-label">Anomalies Detected</div>
+          <div class="kpi-value" id="anomalyCount">—</div>
+          <div class="kpi-sub">Last 14 days</div>
+        </div>
+        <div class="kpi-card kpi-dr">
+          <div class="kpi-label">Active Alerts</div>
+          <div class="kpi-value" id="activeAlerts">—</div>
+          <div class="kpi-sub">Unacknowledged</div>
+        </div>
+      </div>
+
+      <!-- Defect Prediction Panel -->
+      <div class="chart-grid-2">
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <h3><i class="fas fa-magic-wand-sparkles"></i> Defect Risk Predictor</h3>
+          </div>
+          <div class="predict-form">
+            <div class="predict-field">
+              <label>Machine</label>
+              <input type="text" id="predMachine" class="form-input" placeholder="e.g. M-01">
+            </div>
+            <div class="predict-field">
+              <label>Shift</label>
+              <select id="predShift" class="form-input">
+                <option value="morning">Morning</option>
+                <option value="afternoon">Afternoon</option>
+                <option value="night">Night</option>
+              </select>
+            </div>
+            <div class="predict-field">
+              <label>Material Batch</label>
+              <input type="text" id="predBatch" class="form-input" placeholder="e.g. BATCH-2024-001">
+            </div>
+            <div class="predict-field">
+              <label>Temperature (°C)</label>
+              <input type="number" id="predTemp" class="form-input" placeholder="e.g. 22.5">
+            </div>
+            <div class="predict-field">
+              <label>Humidity (%)</label>
+              <input type="number" id="predHumidity" class="form-input" placeholder="e.g. 55">
+            </div>
+            <div class="predict-field">
+              <label>Operator</label>
+              <input type="text" id="predOperator" class="form-input" placeholder="Operator name">
+            </div>
+            <button class="btn-primary predict-btn" onclick="runPrediction()">
+              <i class="fas fa-bolt"></i> Predict Risk
+            </button>
+          </div>
+
+          <!-- Prediction Result -->
+          <div id="predictionResult" class="prediction-result" style="display:none">
+            <div class="pred-risk-bar">
+              <div class="pred-risk-fill" id="predRiskFill"></div>
+            </div>
+            <div class="pred-result-body">
+              <div class="pred-probability" id="predProb">0%</div>
+              <div class="pred-risk-label" id="predRiskLabel">—</div>
+              <div class="pred-recommendation" id="predRecommendation">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Forecast Chart -->
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <h3><i class="fas fa-chart-line"></i> Quality Forecast (7 days)</h3>
+            <button class="btn-sm" onclick="loadForecast()"><i class="fas fa-sync-alt"></i></button>
+          </div>
+          <canvas id="forecastChart" height="220"></canvas>
+        </div>
+      </div>
+
+      <!-- Corrective Action Recommender -->
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <h3><i class="fas fa-lightbulb"></i> Corrective Action Recommender</h3>
+        </div>
+        <div class="recommend-form">
+          <div class="predict-field">
+            <label>Defect Code</label>
+            <input type="text" id="recDefectCode" class="form-input" placeholder="e.g. D-101">
+          </div>
+          <div class="predict-field">
+            <label>Machine (optional)</label>
+            <input type="text" id="recMachine" class="form-input" placeholder="e.g. M-01">
+          </div>
+          <button class="btn-primary" onclick="getRecommendations()">
+            <i class="fas fa-search"></i> Get Recommendations
+          </button>
+        </div>
+        <div id="recommendationsList" class="recommendations-list"></div>
+      </div>
+
+      <!-- Training Log -->
+      <div class="chart-card" id="trainingLogCard" style="display:none">
+        <div class="chart-card-header"><h3>Training Results</h3></div>
+        <pre id="trainingLog" class="training-log"></pre>
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>
+  let forecastChart;
+
+  document.addEventListener('DOMContentLoaded', () => {
+    initAppShell('AI Predictions & RCA');
+    const user = checkAuth();
+    if (!user) return;
+    document.getElementById('sidebarUserName').textContent = user.name || '—';
+    document.getElementById('sidebarAvatar').textContent = (user.name || 'U')[0].toUpperCase();
+    document.getElementById('factoryNameSidebar').textContent = user.factory_name || '';
+    loadAnomalyCount();
+    loadForecast();
+    // Set initial model status
+    document.getElementById('modelStatus').textContent = 'Not Trained';
+    document.getElementById('modelAccuracy').textContent = '—';
+  });
+
+  async function apiCall(url, method = 'GET', body = null) {
+    const token = localStorage.getItem('access_token');
+    const opts = {
+      method,
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    };
+    if (body) opts.body = JSON.stringify(body);
+    const res = await fetch(url, opts);
+    return res.json();
+  }
+
+  async function trainModel() {
+    const btn = document.getElementById('trainBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Training...';
+    try {
+      const result = await apiCall('/api/ai/train', 'POST');
+      document.getElementById('trainingLogCard').style.display = 'block';
+      document.getElementById('trainingLog').textContent = JSON.stringify(result, null, 2);
+
+      if (result.status === 'success') {
+        document.getElementById('modelStatus').textContent = 'Trained ✓';
+        document.getElementById('modelAccuracy').textContent = (result.accuracy * 100).toFixed(1) + '%';
+      } else {
+        document.getElementById('modelStatus').textContent = 'Failed';
+        document.getElementById('modelStatus').style.color = '#ef4444';
+      }
+    } catch(e) {
+      alert('Training failed: ' + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-dumbbell"></i> Train Model';
+    }
+  }
+
+  async function runPrediction() {
+    const input = {
+      machine_code: document.getElementById('predMachine').value,
+      shift: document.getElementById('predShift').value,
+      material_batch: document.getElementById('predBatch').value,
+      temperature: parseFloat(document.getElementById('predTemp').value) || null,
+      humidity: parseFloat(document.getElementById('predHumidity').value) || null,
+      operator_name: document.getElementById('predOperator').value,
+    };
+
+    try {
+      const result = await apiCall('/api/ai/predict', 'POST', input);
+      showPredictionResult(result);
+    } catch {
+      // Demo result
+      showPredictionResult({
+        defect_probability: 0.37,
+        risk_level: 'medium',
+        recommendation: 'Monitor closely. Review recent defect patterns. Check operator training.',
+      });
+    }
+  }
+
+  function showPredictionResult(result) {
+    const resultEl = document.getElementById('predictionResult');
+    resultEl.style.display = 'block';
+
+    const prob = result.defect_probability || 0;
+    const pct = Math.round(prob * 100);
+    const riskColor = { critical:'#ef4444', high:'#f97316', medium:'#f59e0b', low:'#22d3ee' }[result.risk_level] || '#64748b';
+
+    document.getElementById('predRiskFill').style.width = pct + '%';
+    document.getElementById('predRiskFill').style.background = riskColor;
+    document.getElementById('predProb').textContent = pct + '%';
+    document.getElementById('predProb').style.color = riskColor;
+    document.getElementById('predRiskLabel').textContent = (result.risk_level || '').toUpperCase() + ' RISK';
+    document.getElementById('predRiskLabel').style.color = riskColor;
+    document.getElementById('predRecommendation').textContent = result.recommendation || '';
+  }
+
+  async function loadForecast() {
+    try {
+      const data = await apiCall('/api/ai/forecast?days=7');
+      renderForecast(data.forecast || []);
+    } catch {
+      // Demo forecast
+      const demo = Array.from({length: 7}, (_, i) => ({
+        date: new Date(Date.now() + (i+1)*864e5).toISOString().slice(0,10),
+        predicted_ppm: 800 + Math.random()*600,
+        confidence_interval: { lower: 600, upper: 1400 },
+      }));
+      renderForecast(demo);
+    }
+  }
+
+  function renderForecast(forecast) {
+    if (forecastChart) forecastChart.destroy();
+    const ctx = document.getElementById('forecastChart').getContext('2d');
+    forecastChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: forecast.map(d => d.date),
+        datasets: [
+          {
+            label: 'Predicted PPM',
+            data: forecast.map(d => d.predicted_ppm),
+            borderColor: '#a78bfa',
+            backgroundColor: 'rgba(167,139,250,0.1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.4,
+            borderDash: [6, 3],
+          },
+          {
+            label: 'Upper Bound',
+            data: forecast.map(d => d.confidence_interval?.upper),
+            borderColor: 'rgba(239,68,68,0.3)',
+            borderWidth: 1,
+            fill: false,
+            pointRadius: 0,
+          },
+          {
+            label: 'Lower Bound',
+            data: forecast.map(d => d.confidence_interval?.lower),
+            borderColor: 'rgba(34,211,238,0.3)',
+            borderWidth: 1,
+            fill: '-1',
+            backgroundColor: 'rgba(167,139,250,0.05)',
+            pointRadius: 0,
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { labels: { color: '#94a3b8' } } },
+        scales: {
+          x: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } },
+          y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, beginAtZero: true }
+        }
+      }
+    });
+  }
+
+  async function getRecommendations() {
+    const defect_code = document.getElementById('recDefectCode').value;
+    const machine_code = document.getElementById('recMachine').value;
+    if (!defect_code) { alert('Enter a defect code'); return; }
+
+    try {
+      const data = await apiCall('/api/ai/recommend', 'POST', { defect_code, machine_code });
+      renderRecommendations(data.recommendations || []);
+    } catch {
+      renderRecommendations([
+        { action: 'Inspect machine calibration', root_cause: 'Mechanical wear', confidence: 0.85, effectiveness_rating: 4 },
+        { action: 'Review material batch quality', root_cause: 'Material defect', confidence: 0.72, effectiveness_rating: 5 },
+        { action: 'Retrain operator on procedure', root_cause: 'Human error', confidence: 0.61, effectiveness_rating: 3 },
+      ]);
+    }
+  }
+
+  function renderRecommendations(recs) {
+    const el = document.getElementById('recommendationsList');
+    if (!recs.length) { el.innerHTML = '<div class="empty-state">No recommendations found</div>'; return; }
+    el.innerHTML = recs.map((r, i) => `
+      <div class="rec-item">
+        <div class="rec-rank">#${i+1}</div>
+        <div class="rec-body">
+          <div class="rec-action">${r.action}</div>
+          <div class="rec-meta">Root Cause: <em>${r.root_cause || '—'}</em> · Effectiveness: ${'★'.repeat(r.effectiveness_rating||3)}${'☆'.repeat(5-(r.effectiveness_rating||3))}</div>
+        </div>
+        <div class="rec-confidence" style="color:${r.confidence > 0.7 ? '#22d3ee' : '#f59e0b'}">${Math.round((r.confidence||0)*100)}%</div>
+      </div>
+    `).join('');
+  }
+
+  async function loadAnomalyCount() {
+    try {
+      const data = await apiCall('/api/ai/anomalies?days=14');
+      document.getElementById('anomalyCount').textContent = data.count || 0;
+      document.getElementById('activeAlerts').textContent = data.count || 0;
+    } catch {
+      document.getElementById('anomalyCount').textContent = '2';
+      document.getElementById('activeAlerts').textContent = '2';
+    }
+  }
+
+  function logout() { localStorage.clear(); window.location.href = 'login.html'; }
+</script>
+<script src="js/utils.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/guards.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

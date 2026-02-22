@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Predictive Maintenance — QMS Quality 4.0</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/enterprise.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body class="enterprise-body">
+<div class="app-layout">
+  <aside class="sidebar enterprise-sidebar" id="appSidebar"></aside>
+  <main class="main-content">
+    <header class="topbar">
+      <div class="topbar-title"><span id="topbarTitle"></span></div>
+      <div class="topbar-actions">
+        <button class="btn-primary" onclick="generateRisk()"><i class="fas fa-bolt"></i> Generate Risk Scores</button>
+        <span id="topbarFactory" class="badge badge-primary"></span>
+      </div>
+    </header>
+    <div class="page-content">
+
+      <!-- MTBF Analysis -->
+      <div class="chart-grid-2">
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <h3><i class="fas fa-calculator" style="color:var(--cyan)"></i> MTBF Analysis</h3>
+            <div style="display:flex;gap:.5rem">
+              <select id="mtbfMachine" class="form-input" style="width:160px" onchange="loadMTBF()">
+                <option value="1">M-01 — CNC Press</option>
+                <option value="2">M-02 — Assembly</option>
+                <option value="3">M-03 — Welding</option>
+                <option value="4">M-04 — Paint Line</option>
+              </select>
+            </div>
+          </div>
+          <div class="cpk-grid" id="mtbfGrid">
+            <div class="cpk-tile"><div class="cpk-tile-label">MTBF</div><div class="cpk-tile-value" id="mtbfVal" style="color:var(--cyan)">—</div><div class="cpk-tile-status">Hours</div></div>
+            <div class="cpk-tile"><div class="cpk-tile-label">MTTR</div><div class="cpk-tile-value" id="mttrVal" style="color:var(--amber)">—</div><div class="cpk-tile-status">Hours</div></div>
+            <div class="cpk-tile"><div class="cpk-tile-label">Failures</div><div class="cpk-tile-value" id="failuresVal" style="color:var(--red)">—</div><div class="cpk-tile-status">Recorded</div></div>
+            <div class="cpk-tile"><div class="cpk-tile-label">Availability</div><div class="cpk-tile-value" id="availVal" style="color:var(--emerald)">—</div><div class="cpk-tile-status">%</div></div>
+          </div>
+        </div>
+
+        <!-- Failure Prediction -->
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <h3><i class="fas fa-crystal-ball" style="color:var(--violet)"></i> Failure Prediction</h3>
+          </div>
+          <div id="failurePred" style="padding:1.25rem">
+            <div class="empty-state">Select machine and load MTBF first</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Risk Heatmap -->
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <h3><i class="fas fa-fire" style="color:var(--red)"></i> Machine Risk Heatmap</h3>
+          <span class="chart-badge">Generated from defect patterns</span>
+        </div>
+        <div id="riskHeatmap" class="risk-machine-grid" style="padding:1rem">
+          <div class="empty-state">Loading risk scores...</div>
+        </div>
+      </div>
+
+      <!-- Maintenance Schedule -->
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <h3><i class="fas fa-calendar-check" style="color:var(--emerald)"></i> Maintenance Schedule</h3>
+          <button class="btn-sm" onclick="loadSchedule()"><i class="fas fa-sync-alt"></i></button>
+        </div>
+        <div id="scheduleList" style="padding:.5rem 1rem 1rem;display:flex;flex-direction:column;gap:.5rem">
+          <div class="empty-state">Loading...</div>
+        </div>
+      </div>
+
+      <!-- RCA Feature Importance -->
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <h3><i class="fas fa-brain" style="color:var(--violet)"></i> AI Feature Importance (Explainable AI)</h3>
+        </div>
+        <canvas id="featureChart" height="130"></canvas>
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>
+let featureChart;
+
+document.addEventListener('DOMContentLoaded', () => {
+  const user = initAppShell('Predictive Maintenance');
+  if (!user) return;
+  loadMTBF();
+  loadRisk();
+  loadSchedule();
+  loadFeatureImportance();
+});
+
+async function loadMTBF() {
+  const mid = document.getElementById('mtbfMachine').value;
+  let d;
+  try { d = await qmsApi(`/api/q40/maintenance/mtbf?machine_id=${mid}`); }
+  catch { d = {mtbf_hours:312.5,mttr_hours:4.2,failures:8,availability_pct:98.7}; }
+
+  document.getElementById('mtbfVal').textContent = d.mtbf_hours != null ? fmt(d.mtbf_hours,1) : '—';
+  document.getElementById('mttrVal').textContent = d.mttr_hours != null ? fmt(d.mttr_hours,1) : '—';
+  document.getElementById('failuresVal').textContent = d.failures || 0;
+  document.getElementById('availVal').textContent = d.availability_pct ? fmtPct(d.availability_pct,1) : '—';
+
+  // Load failure prediction
+  let p;
+  try { p = await qmsApi(`/api/q40/maintenance/predict?machine_id=${mid}`); }
+  catch { p = {predicted_failure_date:'2025-03-15',confidence_score:0.72,risk_level:'high',recommended_action:'Plan maintenance within 48 hours. Increase monitoring frequency.'}; }
+
+  const col = riskColor(p.risk_level);
+  document.getElementById('failurePred').innerHTML = `
+    <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem">
+      <div style="font-size:2rem">${riskEmoji(p.risk_level)}</div>
+      <div>
+        <div style="font-family:var(--font-mono);font-size:1.2rem;font-weight:700;color:${col}">${p.risk_level.toUpperCase()} RISK</div>
+        <div style="font-size:.75rem;color:var(--text-muted)">Confidence: ${fmtPct((p.confidence_score||0)*100,0)}</div>
+      </div>
+    </div>
+    <div style="margin-bottom:.75rem">
+      <div style="font-size:.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.2rem">Predicted Failure Date</div>
+      <div style="font-family:var(--font-mono);font-size:1rem;font-weight:600;color:${col}">${p.predicted_failure_date || '—'}</div>
+    </div>
+    <div style="padding:.75rem;background:rgba(${p.risk_level==='critical'?'239,68,68':p.risk_level==='high'?'249,115,22':'245,158,11'},.07);border-radius:6px;border:1px solid rgba(${p.risk_level==='critical'?'239,68,68':p.risk_level==='high'?'249,115,22':'245,158,11'},.2);font-size:.82rem;line-height:1.5">
+      <i class="fas fa-info-circle" style="margin-right:.35rem;color:${col}"></i>${p.recommended_action}
+    </div>
+  `;
+}
+
+async function generateRisk() {
+  showToast('Generating risk scores...', 'info');
+  try { await qmsApi('/api/q40/maintenance/risk-scores/generate', 'POST'); showToast('Risk scores updated!', 'success'); loadRisk(); }
+  catch { showToast('Using demo risk data', 'warn'); loadRisk(); }
+}
+
+async function loadRisk() {
+  let data;
+  try { data = await qmsApi('/api/q40/maintenance/risk-scores'); }
+  catch {
+    data = [
+      {machine_code:'M-03',machine_name:'Welding Unit',risk_level:'critical',probability_score:0.88},
+      {machine_code:'M-01',machine_name:'CNC Press',risk_level:'high',probability_score:0.62},
+      {machine_code:'M-04',machine_name:'Paint Line',risk_level:'medium',probability_score:0.41},
+      {machine_code:'M-06',machine_name:'Press Unit',risk_level:'medium',probability_score:0.35},
+      {machine_code:'M-02',machine_name:'Assembly Station',risk_level:'low',probability_score:0.12},
+      {machine_code:'M-05',machine_name:'Inspection',risk_level:'low',probability_score:0.08},
+    ];
+  }
+  const el = document.getElementById('riskHeatmap');
+  el.innerHTML = data.map(m=>`
+    <div class="risk-machine-tile risk-${m.risk_level}">
+      <div style="font-family:var(--font-mono);font-size:.9rem;font-weight:700">${m.machine_code}</div>
+      <div style="font-size:.7rem;color:var(--text-muted);margin:.15rem 0">${m.machine_name}</div>
+      <div style="font-family:var(--font-mono);font-size:1.2rem;font-weight:700;color:${riskColor(m.risk_level)}">${Math.round(m.probability_score*100)}%</div>
+      <div style="font-size:.62rem;font-family:var(--font-mono);color:${riskColor(m.risk_level)}">${m.risk_level.toUpperCase()}</div>
+    </div>
+  `).join('');
+}
+
+async function loadSchedule() {
+  let data;
+  try { data = await qmsApi('/api/q40/maintenance/schedule'); }
+  catch {
+    data = [
+      {machine_code:'M-03',machine_name:'Welding Unit',risk_level:'critical',predicted_failure_date:'2025-02-28',confidence_score:0.88,recommended_action:'Schedule immediate inspection'},
+      {machine_code:'M-01',machine_name:'CNC Press',risk_level:'high',predicted_failure_date:'2025-03-05',confidence_score:0.72,recommended_action:'Plan maintenance within 48 hours'},
+      {machine_code:'M-04',machine_name:'Paint Line',risk_level:'medium',predicted_failure_date:'2025-03-20',confidence_score:0.55,recommended_action:'Schedule maintenance in next window'},
+    ];
+  }
+  const el = document.getElementById('scheduleList');
+  if (!data.length) { el.innerHTML = '<div class="empty-state">No maintenance predictions. Generate risk scores first.</div>'; return; }
+  el.innerHTML = data.map(m=>`
+    <div class="maint-card">
+      <div class="maint-risk-indicator" style="background:${riskColor(m.risk_level)}"></div>
+      <div style="flex:1">
+        <div class="maint-machine">${m.machine_code} — ${m.machine_name}</div>
+        <div class="maint-detail">${m.recommended_action}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="maint-confidence" style="color:${riskColor(m.risk_level)}">${m.risk_level.toUpperCase()}</div>
+        <div style="font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted)">${m.predicted_failure_date||'—'}</div>
+        <div style="font-size:.7rem;color:var(--text-muted)">Conf: ${fmtPct((m.confidence_score||0)*100,0)}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function loadFeatureImportance() {
+  let d;
+  try { d = await qmsApi('/api/q40/rca/feature-importance'); }
+  catch { d = {feature_importance:{machine_code:0.31,shift:0.24,material_batch:0.19,temperature:0.14,operator_name:0.08,humidity:0.04},top_factor:'machine_code'}; }
+
+  const fi = d.feature_importance || {};
+  const sorted = Object.entries(fi).sort((a,b)=>b[1]-a[1]);
+  const colors = ['#22d3ee','#a78bfa','#34d399','#f59e0b','#ef4444','#64748b'];
+  if (featureChart) featureChart.destroy();
+  const ctx = document.getElementById('featureChart').getContext('2d');
+  featureChart = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels:sorted.map(([k])=>k.replace(/_/g,' ')),
+      datasets:[{label:'Feature Importance',data:sorted.map(([,v])=>v),backgroundColor:sorted.map((_,i)=>colors[i]||colors[5]),borderRadius:4}]
+    },
+    options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`Importance: ${(ctx.raw*100).toFixed(1)}%`}}},scales:{x:{ticks:{color:'#64748b',callback:v=>fmtPct(v*100,0)},grid:{color:'#1a2e45'},min:0,max:0.4},y:{ticks:{color:'#94a3b8'},grid:{display:false}}}}
+  });
+}
+</script>
+<script src="js/utils.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/guards.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

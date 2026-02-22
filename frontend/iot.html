@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IoT & Sensors — QMS Quality 4.0</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/enterprise.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body class="enterprise-body">
+<div class="app-layout">
+  <aside class="sidebar enterprise-sidebar" id="appSidebar"></aside>
+  <main class="main-content">
+    <header class="topbar">
+      <div class="topbar-title"><span class="live-dot"></span><span id="topbarTitle"></span></div>
+      <div class="topbar-actions">
+        <button class="btn-sm" onclick="loadSensors()"><i class="fas fa-sync-alt"></i> Refresh</button>
+        <button class="btn-primary" onclick="showAddDevice()"><i class="fas fa-plus"></i> Add Device</button>
+        <span id="topbarFactory" class="badge badge-primary"></span>
+      </div>
+    </header>
+    <div class="page-content">
+
+      <!-- Live sensor grid -->
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <h3><i class="fas fa-microchip" style="color:var(--cyan)"></i> Live Sensor Readings</h3>
+          <span class="chart-badge">Auto-refresh 30s</span>
+        </div>
+        <div id="sensorGrid" class="sensor-grid"><div class="empty-state">Loading sensors...</div></div>
+      </div>
+
+      <!-- Timeseries chart -->
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <h3>Sensor Timeseries</h3>
+          <div style="display:flex;gap:.5rem;align-items:center">
+            <select id="deviceSelect" class="form-input" style="width:180px" onchange="loadTimeseries()">
+              <option value="">Select device...</option>
+            </select>
+            <select id="metricSelect" class="form-input" style="width:140px" onchange="loadTimeseries()">
+              <option value="temperature">Temperature</option>
+              <option value="vibration">Vibration</option>
+              <option value="pressure">Pressure</option>
+              <option value="humidity">Humidity</option>
+              <option value="speed">Speed</option>
+            </select>
+            <select id="hoursSelect" class="form-input" style="width:100px" onchange="loadTimeseries()">
+              <option value="1">1 Hour</option>
+              <option value="8">8 Hours</option>
+              <option value="24" selected>24 Hours</option>
+              <option value="72">3 Days</option>
+            </select>
+          </div>
+        </div>
+        <canvas id="timeseriesChart" height="160"></canvas>
+      </div>
+
+      <!-- Devices table -->
+      <div class="chart-card">
+        <div class="chart-card-header"><h3>Registered IoT Devices</h3></div>
+        <div id="devicesList" style="padding:1rem"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Add Device Modal -->
+<div id="addDeviceModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="modal-box">
+    <div class="modal-header"><h3>Register IoT Device</h3><button onclick="closeModal()" class="btn-sm"><i class="fas fa-times"></i></button></div>
+    <div class="modal-body">
+      <label>Device Name</label><input id="devName" class="form-input" placeholder="e.g. Temperature Sensor M-01">
+      <label>Device Type</label>
+      <select id="devType" class="form-input">
+        <option value="temperature">Temperature</option><option value="vibration">Vibration</option>
+        <option value="pressure">Pressure</option><option value="humidity">Humidity</option>
+        <option value="speed">Speed</option><option value="vision">Vision</option><option value="custom">Custom</option>
+      </select>
+      <label>Machine</label>
+      <select id="devMachine" class="form-input"><option value="">Select machine...</option></select>
+      <label>Serial Number</label><input id="devSN" class="form-input" placeholder="SN-2024-001">
+      <label>Location</label><input id="devLoc" class="form-input" placeholder="Production floor A">
+      <button class="btn-primary" onclick="saveDevice()"><i class="fas fa-save"></i> Register Device</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;display:flex;align-items:center;justify-content:center}
+.modal-box{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);width:420px;overflow:hidden}
+.modal-header{padding:1rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-header h3{margin:0;font-size:.95rem}
+.modal-body{padding:1.25rem;display:flex;flex-direction:column;gap:.75rem}
+.modal-body label{font-size:.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.07em}
+.modal-body .form-input{width:100%;box-sizing:border-box}
+</style>
+<script>
+let tsChart, devices = [], machines = [];
+
+const DEMO_SENSORS = [
+  {device_id:1,device_name:'Temp Sensor A',device_type:'temperature',machine_code:'M-01',machine_name:'CNC Press',metric_name:'temperature',metric_value:22.4,unit:'°C',quality_flag:'good'},
+  {device_id:2,device_name:'Vibration Monitor',device_type:'vibration',machine_code:'M-01',machine_name:'CNC Press',metric_name:'vibration',metric_value:0.82,unit:'mm/s',quality_flag:'suspect'},
+  {device_id:3,device_name:'Pressure Gauge',device_type:'pressure',machine_code:'M-02',machine_name:'Assembly Station',metric_name:'pressure',metric_value:4.2,unit:'bar',quality_flag:'good'},
+  {device_id:4,device_name:'Humidity Sensor',device_type:'humidity',machine_code:'M-03',machine_name:'Welding Unit',metric_name:'humidity',metric_value:58.3,unit:'%RH',quality_flag:'good'},
+  {device_id:5,device_name:'Spindle Speed',device_type:'speed',machine_code:'M-04',machine_name:'Paint Line',metric_name:'speed',metric_value:2840,unit:'RPM',quality_flag:'good'},
+  {device_id:6,device_name:'Torque Sensor',device_type:'custom',machine_code:'M-05',machine_name:'Inspection',metric_name:'torque',metric_value:145.6,unit:'Nm',quality_flag:'bad'},
+];
+
+document.addEventListener('DOMContentLoaded', () => {
+  const user = initAppShell('IoT & Sensors');
+  if (!user) return;
+  loadSensors();
+  loadMachines();
+  setInterval(loadSensors, 30000);
+});
+
+async function loadSensors() {
+  let data;
+  try { data = await qmsApi('/api/q40/iot/summary?hours=1'); } catch { data = DEMO_SENSORS; }
+  devices = data;
+  renderSensors(data);
+  populateDeviceSelect(data);
+}
+
+function renderSensors(data) {
+  const el = document.getElementById('sensorGrid');
+  if (!data.length) { el.innerHTML = '<div class="empty-state">No active sensors. Register a device to start monitoring.</div>'; return; }
+  const typeIcon = {temperature:'fa-thermometer-half',vibration:'fa-wave-square',pressure:'fa-gauge-high',humidity:'fa-droplet',speed:'fa-tachometer-alt',vision:'fa-eye',acoustic:'fa-volume-up',torque:'fa-rotate'};
+  const thresholds = {temperature:{warn:30,crit:40},vibration:{warn:1,crit:2},pressure:{warn:6,crit:8},humidity:{warn:70,crit:85}};
+
+  el.innerHTML = data.map(s => {
+    const t = thresholds[s.device_type] || {};
+    const val = parseFloat(s.metric_value);
+    let flagColor = s.quality_flag === 'good' ? 'var(--emerald)' : s.quality_flag === 'suspect' ? 'var(--amber)' : 'var(--red)';
+    if (t.crit && val > t.crit) flagColor = 'var(--red)';
+    else if (t.warn && val > t.warn) flagColor = 'var(--amber)';
+
+    return `
+      <div class="sensor-card" onclick="selectDevice(${s.device_id},'${s.metric_name}')" style="cursor:pointer">
+        <div class="sensor-card-type"><i class="fas ${typeIcon[s.device_type]||'fa-microchip'}"></i> ${s.device_type}</div>
+        <div class="sensor-card-name">${s.device_name}</div>
+        <div class="sensor-card-value" style="color:${flagColor}">${fmt(parseFloat(s.metric_value),2)}</div>
+        <div class="sensor-card-unit">${s.unit || ''}</div>
+        <div class="sensor-card-machine">
+          <span class="sensor-status ${s.quality_flag}" style="background:${flagColor}"></span>
+          ${s.machine_code} — ${s.machine_name}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function populateDeviceSelect(data) {
+  const sel = document.getElementById('deviceSelect');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Select device...</option>' + data.map(d=>`<option value="${d.device_id}">${d.device_name} (${d.machine_code})</option>`).join('');
+  if (current) sel.value = current;
+}
+
+function selectDevice(deviceId, metric) {
+  document.getElementById('deviceSelect').value = deviceId;
+  document.getElementById('metricSelect').value = metric || 'temperature';
+  loadTimeseries();
+}
+
+async function loadTimeseries() {
+  const deviceId = document.getElementById('deviceSelect').value;
+  const metric = document.getElementById('metricSelect').value;
+  const hours = document.getElementById('hoursSelect').value;
+  if (!deviceId) return;
+
+  let data;
+  try { data = await qmsApi(`/api/q40/iot/timeseries?device_id=${deviceId}&metric=${metric}&hours=${hours}`); } catch {
+    const n = parseInt(hours) * 4;
+    data = Array.from({length:n},(_,i)=>({recorded_at:new Date(Date.now()-(n-i)*900000).toISOString(),metric_value:22+Math.sin(i/5)*2+Math.random()}));
+  }
+
+  if (tsChart) tsChart.destroy();
+  const ctx = document.getElementById('timeseriesChart').getContext('2d');
+  const label = data.length ? (devices.find(d=>d.device_id==deviceId)?.device_name || 'Sensor') : 'No data';
+  tsChart = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels:data.map(d=>new Date(d.recorded_at).toLocaleTimeString()),
+      datasets:[{label:`${label} — ${metric}`,data:data.map(d=>parseFloat(d.metric_value)),borderColor:'#22d3ee',backgroundColor:'rgba(34,211,238,0.07)',borderWidth:2,fill:true,tension:0.3,pointRadius:1}]
+    },
+    options:{responsive:true,plugins:{legend:{labels:{color:'#94a3b8'}}},scales:{x:{ticks:{color:'#64748b',maxTicksLimit:12},grid:{color:'#1a2e45'}},y:{ticks:{color:'#64748b'},grid:{color:'#1a2e45'}}}}
+  });
+}
+
+async function loadMachines() {
+  try { machines = await qmsApi('/api/quality/machines'); } catch {
+    machines = [{id:1,code:'M-01',name:'CNC Press'},{id:2,code:'M-02',name:'Assembly Station'},{id:3,code:'M-03',name:'Welding Unit'}];
+  }
+  const sel = document.getElementById('devMachine');
+  sel.innerHTML = '<option value="">Select machine...</option>' + machines.map(m=>`<option value="${m.id}">${m.code} — ${m.name}</option>`).join('');
+
+  // Render devices list
+  const el = document.getElementById('devicesList');
+  el.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:.82rem">
+      <thead><tr style="border-bottom:1px solid var(--border)">
+        <th style="padding:.5rem .75rem;text-align:left;color:var(--text-muted);font-family:var(--font-mono);font-size:.72rem">DEVICE</th>
+        <th style="padding:.5rem .75rem;text-align:left;color:var(--text-muted);font-family:var(--font-mono);font-size:.72rem">TYPE</th>
+        <th style="padding:.5rem .75rem;text-align:left;color:var(--text-muted);font-family:var(--font-mono);font-size:.72rem">MACHINE</th>
+        <th style="padding:.5rem .75rem;text-align:left;color:var(--text-muted);font-family:var(--font-mono);font-size:.72rem">STATUS</th>
+      </tr></thead>
+      <tbody>
+        ${devices.map(d=>`
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:.5rem .75rem;font-weight:500">${d.device_name}</td>
+            <td style="padding:.5rem .75rem;color:var(--text-muted);font-family:var(--font-mono);font-size:.75rem">${d.device_type}</td>
+            <td style="padding:.5rem .75rem">${d.machine_code} — ${d.machine_name}</td>
+            <td style="padding:.5rem .75rem"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${d.quality_flag==='good'?'var(--emerald)':d.quality_flag==='suspect'?'var(--amber)':'var(--red)'};margin-right:.4rem"></span>${d.quality_flag}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function showAddDevice() { document.getElementById('addDeviceModal').style.display = 'flex'; }
+function closeModal() { document.getElementById('addDeviceModal').style.display = 'none'; }
+
+async function saveDevice() {
+  const payload = {
+    name: document.getElementById('devName').value,
+    device_type: document.getElementById('devType').value,
+    machine_id: document.getElementById('devMachine').value || null,
+    serial_number: document.getElementById('devSN').value,
+    location: document.getElementById('devLoc').value,
+  };
+  try {
+    await qmsApi('/api/q40/iot/devices', 'POST', payload);
+    showToast('Device registered successfully!', 'success');
+    closeModal();
+    loadSensors();
+  } catch(e) { showToast('Error registering device', 'error'); }
+}
+</script>
+<script src="js/utils.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/guards.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

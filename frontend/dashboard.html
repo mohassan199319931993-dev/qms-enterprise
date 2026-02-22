@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — QMS Quality 4.0</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/enterprise.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body class="enterprise-body">
+<div class="app-layout">
+  <aside class="sidebar enterprise-sidebar" id="appSidebar"></aside>
+  <main class="main-content">
+    <header class="topbar">
+      <div class="topbar-title">
+        <span class="live-dot"></span>
+        <span id="topbarTitle">Quality 4.0 Dashboard</span>
+      </div>
+      <div class="topbar-actions">
+        <span id="lastRefresh" style="font-size:.72rem;color:var(--text-muted);font-family:var(--font-mono)"></span>
+        <button class="btn-sm" id="refreshBtn" onclick="refreshAll()"><i class="fas fa-sync-alt"></i> Refresh</button>
+        <span id="topbarFactory" class="badge badge-primary"></span>
+      </div>
+    </header>
+
+    <div class="page-content">
+
+      <!-- Quality 4.0 KPI Bar -->
+      <div class="kpi-row-v3">
+        <div class="kpi-mini"><div class="kpi-mini-label">PPM</div><div class="kpi-mini-value" id="dPPM">—</div><div class="kpi-mini-sub">Parts Per Million</div></div>
+        <div class="kpi-mini"><div class="kpi-mini-label">OEE</div><div class="kpi-mini-value" id="dOEE">—</div><div class="kpi-mini-sub">Equip. Effectiveness</div></div>
+        <div class="kpi-mini"><div class="kpi-mini-label">FPY</div><div class="kpi-mini-value" id="dFPY">—</div><div class="kpi-mini-sub">First Pass Yield</div></div>
+        <div class="kpi-mini"><div class="kpi-mini-label">COPQ</div><div class="kpi-mini-value" id="dCOPQ">—</div><div class="kpi-mini-sub">Cost of Poor Quality</div></div>
+        <div class="kpi-mini"><div class="kpi-mini-label">Stability</div><div class="kpi-mini-value" id="dStability">—</div><div class="kpi-mini-sub">Process Score</div></div>
+        <div class="kpi-mini"><div class="kpi-mini-label">AI Score</div><div class="kpi-mini-value" id="dAI">—</div><div class="kpi-mini-sub">AI Confidence</div></div>
+      </div>
+
+      <!-- OEE + PPM Trend -->
+      <div class="chart-grid-3">
+        <div class="chart-card span-1">
+          <div class="chart-card-header">
+            <h3>OEE Breakdown</h3>
+            <span class="chart-badge">Live</span>
+          </div>
+          <div class="oee-gauges">
+            <div class="oee-gauge-item">
+              <svg viewBox="0 0 120 80" class="gauge-svg" id="gAvail"></svg>
+              <div class="gauge-label">Availability</div>
+              <div class="gauge-val" id="vAvail">—</div>
+            </div>
+            <div class="oee-gauge-item">
+              <svg viewBox="0 0 120 80" class="gauge-svg" id="gPerf"></svg>
+              <div class="gauge-label">Performance</div>
+              <div class="gauge-val" id="vPerf">—</div>
+            </div>
+            <div class="oee-gauge-item">
+              <svg viewBox="0 0 120 80" class="gauge-svg" id="gQual"></svg>
+              <div class="gauge-label">Quality</div>
+              <div class="gauge-val" id="vQual">—</div>
+            </div>
+          </div>
+        </div>
+        <div class="chart-card span-2">
+          <div class="chart-card-header">
+            <h3>PPM Trend — 30 Days</h3>
+            <span class="spc-status-badge spc-in-control" id="spcStatusBadge">Checking...</span>
+          </div>
+          <canvas id="ppmChart" height="185"></canvas>
+        </div>
+      </div>
+
+      <!-- Risk Map + Pareto -->
+      <div class="chart-grid-2">
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <h3><i class="fas fa-fire" style="color:var(--red)"></i> Machine Risk Map</h3>
+            <a href="maintenance.html" class="btn-sm">Full View</a>
+          </div>
+          <div id="riskMap" class="risk-machine-grid"></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <h3>Top Defects — Pareto</h3>
+            <a href="analytics.html" class="btn-sm">Full Analysis</a>
+          </div>
+          <canvas id="paretoChart" height="220"></canvas>
+        </div>
+      </div>
+
+      <!-- Anomalies + Shift -->
+      <div class="chart-grid-2">
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <h3><i class="fas fa-triangle-exclamation" style="color:var(--amber)"></i> AI Anomaly Feed</h3>
+            <a href="ai.html" class="btn-sm">View All</a>
+          </div>
+          <div id="anomalyFeed" class="anomaly-list" style="max-height:250px;overflow-y:auto">
+            <div class="empty-state">Loading...</div>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <h3>Shift Comparison</h3>
+            <a href="analytics.html" class="btn-sm">Details</a>
+          </div>
+          <canvas id="shiftChart" height="220"></canvas>
+        </div>
+      </div>
+
+      <!-- Quick Navigation -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:.75rem">
+        <a href="iot.html" class="nav-quick-card"><i class="fas fa-microchip" style="color:var(--cyan)"></i><div>IoT &amp; Sensors</div><small>Live sensor data</small></a>
+        <a href="spc.html" class="nav-quick-card"><i class="fas fa-chart-gantt" style="color:var(--violet)"></i><div>SPC Control</div><small>Control charts &amp; Cpk</small></a>
+        <a href="maintenance.html" class="nav-quick-card"><i class="fas fa-wrench" style="color:var(--amber)"></i><div>Predictive Maint.</div><small>MTBF &amp; risk</small></a>
+        <a href="traceability.html" class="nav-quick-card"><i class="fas fa-sitemap" style="color:var(--emerald)"></i><div>Traceability</div><small>Batch tracking</small></a>
+        <a href="chatbot.html" class="nav-quick-card"><i class="fas fa-comments" style="color:var(--cyan)"></i><div>AI Chatbot</div><small>Quality insights</small></a>
+        <a href="digital-twin.html" class="nav-quick-card"><i class="fas fa-cube" style="color:var(--violet)"></i><div>Digital Twin</div><small>Virtual machines</small></a>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<style>
+.nav-quick-card {
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 1rem; text-decoration: none;
+  color: var(--text-primary); display: flex; flex-direction: column; gap: .35rem;
+  transition: border-color .15s, transform .15s;
+}
+.nav-quick-card:hover { border-color: var(--border-light); transform: translateY(-3px); }
+.nav-quick-card i { font-size: 1.4rem; }
+.nav-quick-card div { font-weight: 600; font-size: .85rem; }
+.nav-quick-card small { color: var(--text-muted); font-size: .72rem; }
+</style>
+<script>
+let ppmChart, paretoChart, shiftChart;
+
+document.addEventListener('DOMContentLoaded', () => {
+  const user = initAppShell('Quality 4.0 Dashboard');
+  if (!user) return;
+  initRealTimeKPI(refreshAll, 30000);
+});
+
+async function refreshAll() {
+  const btn = document.getElementById('refreshBtn');
+  const icon = btn?.querySelector('i');
+  if (icon) icon.classList.add('spinning');
+  document.getElementById('lastRefresh').textContent = 'Updating...';
+  await Promise.allSettled([loadKPIs(), loadOEE(), loadTrend(), loadPareto(), loadRisk(), loadAnomalies(), loadShifts()]);
+  if (icon) icon.classList.remove('spinning');
+  document.getElementById('lastRefresh').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+}
+
+async function loadKPIs() {
+  try {
+    const resp = await API.getQ40KPIs(7);
+    const d = resp.data || {};
+    document.getElementById('dPPM').textContent      = fmt(d.ppm || 0);
+    document.getElementById('dOEE').textContent      = fmtPct(d.oee_pct || 0, 1);
+    document.getElementById('dFPY').textContent      = fmtPct(d.first_pass_yield_pct || 0, 2);
+    document.getElementById('dCOPQ').textContent     = '$' + fmt(d.copq_usd || 0);
+    document.getElementById('dStability').textContent = fmt(d.process_stability_score || 0, 1);
+    document.getElementById('dAI').textContent       = fmtPct((d.ai_confidence_score || 0) * 100, 1);
+  } catch(e) {
+    console.warn('KPIs fallback:', e);
+    document.getElementById('dPPM').textContent      = '—';
+    document.getElementById('dOEE').textContent      = '—';
+    document.getElementById('dFPY').textContent      = '—';
+    document.getElementById('dCOPQ').textContent     = '—';
+    document.getElementById('dStability').textContent = '—';
+    document.getElementById('dAI').textContent       = '—';
+  }
+}
+
+async function loadOEE() {
+  try {
+    const d = (await API.get('/quality/oee')).data;
+    drawGauge('gAvail','vAvail', d.availability_pct || 88, '#22d3ee');
+    drawGauge('gPerf','vPerf', d.performance_pct || 93, '#a78bfa');
+    drawGauge('gQual','vQual', d.quality_pct || 99.8, '#34d399');
+  } catch {
+    drawGauge('gAvail','vAvail', 88.0, '#22d3ee');
+    drawGauge('gPerf','vPerf', 93.5, '#a78bfa');
+    drawGauge('gQual','vQual', 99.8, '#34d399');
+  }
+}
+
+function drawGauge(svgId, valId, pct, color) {
+  const svg = document.getElementById(svgId); if (!svg) return;
+  const capped = Math.min(Math.max(pct, 0), 100);
+  const r=50, cx=60, cy=75;
+  const toRad = d => d*Math.PI/180;
+  const arc = a => ({x: cx+r*Math.cos(toRad(a)), y: cy+r*Math.sin(toRad(a))});
+  const s=arc(-180), e=arc(-180+capped*1.8);
+  svg.innerHTML = `
+    <path d="M ${cx-r} ${cy} A ${r} ${r} 0 0 1 ${cx+r} ${cy}" fill="none" stroke="#1e293b" stroke-width="10"/>
+    <path d="M ${s.x} ${s.y} A ${r} ${r} 0 ${capped*1.8>180?1:0} 1 ${e.x} ${e.y}" fill="none" stroke="${color}" stroke-width="10" stroke-linecap="round"/>
+  `;
+  const el = document.getElementById(valId);
+  if (el) { el.textContent = fmtPct(capped); el.style.color = color; }
+}
+
+async function loadTrend() {
+  let data;
+  try { data = (await API.get('/quality/trend?period=daily&days=30')).data; } catch {
+    data = Array.from({length:30},(_,i)=>({period:new Date(Date.now()-(29-i)*864e5).toISOString().slice(0,10),ppm:900+Math.random()*800}));
+  }
+  if (ppmChart) ppmChart.destroy();
+  const ctx = document.getElementById('ppmChart').getContext('2d');
+  ppmChart = new Chart(ctx, {
+    type:'line', data:{
+      labels:data.map(d=>d.period),
+      datasets:[{label:'PPM',data:data.map(d=>d.ppm),borderColor:'#22d3ee',backgroundColor:'rgba(34,211,238,0.07)',borderWidth:2,fill:true,tension:0.4,pointRadius:2,pointBackgroundColor:'#22d3ee'}]
+    },
+    options:{responsive:true,plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false}},scales:{x:{ticks:{color:'#64748b',maxTicksLimit:8},grid:{color:'#1a2e45'}},y:{ticks:{color:'#64748b'},grid:{color:'#1a2e45'},beginAtZero:true}}}
+  });
+  const hasOOC = data.some(d=>d.ppm>3000);
+  const badge = document.getElementById('spcStatusBadge');
+  badge.className = 'spc-status-badge '+(hasOOC?'spc-out-control':'spc-in-control');
+  badge.textContent = hasOOC ? '⚠ Out of Control' : '✓ In Control';
+}
+
+async function loadPareto() {
+  let data;
+  try { data = (await API.get('/quality/pareto?limit=6')).data; } catch {
+    data = [{code:'D-101',description:'Surface Scratch',total_defective:412,cumulative_pct:34.1},{code:'D-202',description:'Dimensional Error',total_defective:298,cumulative_pct:58.8},{code:'D-303',description:'Assembly Defect',total_defective:187,cumulative_pct:74.3},{code:'D-404',description:'Paint Defect',total_defective:134,cumulative_pct:85.4},{code:'D-505',description:'Crack',total_defective:89,cumulative_pct:92.8},{code:'D-606',description:'Contamination',total_defective:86,cumulative_pct:100}];
+  }
+  if (paretoChart) paretoChart.destroy();
+  const ctx = document.getElementById('paretoChart').getContext('2d');
+  paretoChart = new Chart(ctx, {
+    data:{labels:data.map(d=>d.code),datasets:[{type:'bar',label:'Count',data:data.map(d=>d.total_defective),backgroundColor:'rgba(239,68,68,0.75)',yAxisID:'y',borderRadius:4},{type:'line',label:'Cumulative %',data:data.map(d=>d.cumulative_pct),borderColor:'#f59e0b',backgroundColor:'transparent',borderWidth:2,pointRadius:4,yAxisID:'y2'}]},
+    options:{responsive:true,plugins:{legend:{labels:{color:'#94a3b8'}}},scales:{x:{ticks:{color:'#64748b'},grid:{color:'#1a2e45'}},y:{ticks:{color:'#64748b'},grid:{color:'#1a2e45'},beginAtZero:true},y2:{position:'right',ticks:{color:'#f59e0b',callback:v=>v+'%'},grid:{display:false},min:0,max:100}}}
+  });
+}
+
+async function loadRisk() {
+  let data;
+  try { data = (await API.getRiskScores()).data; } catch {
+    data = [{machine_code:'M-01',machine_name:'CNC Press',risk_level:'high',probability_score:0.62},{machine_code:'M-02',machine_name:'Assembly Station',risk_level:'low',probability_score:0.12},{machine_code:'M-03',machine_name:'Welding Unit',risk_level:'critical',probability_score:0.88},{machine_code:'M-04',machine_name:'Paint Line',risk_level:'medium',probability_score:0.35},{machine_code:'M-05',machine_name:'Inspection',risk_level:'low',probability_score:0.08},{machine_code:'M-06',machine_name:'Press Unit',risk_level:'medium',probability_score:0.41}];
+  }
+  const el = document.getElementById('riskMap');
+  if (!data.length) { el.innerHTML = '<div class="empty-state">No risk data. <a href="maintenance.html" style="color:var(--cyan)">Generate →</a></div>'; return; }
+  el.innerHTML = data.map(m=>`
+    <div class="risk-machine-tile risk-${m.risk_level}">
+      <div class="machine-code">${m.machine_code}</div>
+      <div class="machine-name" style="font-size:.7rem;color:var(--text-muted)">${m.machine_name}</div>
+      <div class="machine-score" style="color:${riskColor(m.risk_level)}">${Math.round(m.probability_score*100)}%</div>
+      <div style="font-size:.6rem;color:${riskColor(m.risk_level)};font-family:var(--font-mono)">${m.risk_level.toUpperCase()}</div>
+    </div>
+  `).join('');
+}
+
+async function loadAnomalies() {
+  let data;
+  try { const r=(await API.getAnomalies(7)).data; data=r.anomalies||[]; } catch {
+    data = [{machine:'M-03',shift:'night',defect_rate:0.089,severity:'critical',date:new Date().toISOString().slice(0,10),description:'Anomalous defect pattern on Welding Unit'},{machine:'M-01',shift:'afternoon',defect_rate:0.043,severity:'high',date:new Date(Date.now()-86400000).toISOString().slice(0,10),description:'Elevated defect rate on CNC Press'}];
+  }
+  const el = document.getElementById('anomalyFeed');
+  if (!data.length) { el.innerHTML='<div class="empty-state"><i class="fas fa-check-circle" style="color:var(--emerald)"></i> No anomalies in last 7 days</div>'; return; }
+  el.innerHTML = data.map(a=>`
+    <div class="anomaly-item severity-${a.severity}">
+      <div class="anomaly-icon" style="color:${riskColor(a.severity)}"><i class="fas fa-triangle-exclamation"></i></div>
+      <div class="anomaly-body">
+        <div class="anomaly-title">${a.description}</div>
+        <div class="anomaly-meta">Machine: <strong>${a.machine}</strong> · ${a.shift} · ${fmtPct(a.defect_rate*100)} · ${a.date}</div>
+      </div>
+      <div class="anomaly-badge badge-${a.severity}">${a.severity.toUpperCase()}</div>
+    </div>
+  `).join('');
+}
+
+async function loadShifts() {
+  let shifts;
+  try { const d=(await API.get('/reports/monthly')).data; shifts=d.shift_comparison||[]; } catch {
+    shifts=[{shift:'morning',ppm:620},{shift:'afternoon',ppm:780},{shift:'night',ppm:1340}];
+  }
+  if (shiftChart) shiftChart.destroy();
+  const ctx=document.getElementById('shiftChart').getContext('2d');
+  shiftChart=new Chart(ctx,{type:'bar',data:{labels:shifts.map(s=>s.shift),datasets:[{label:'PPM',data:shifts.map(s=>s.ppm),backgroundColor:['rgba(34,211,238,0.7)','rgba(167,139,250,0.7)','rgba(239,68,68,0.7)'],borderRadius:6}]},options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#64748b'},grid:{color:'#1a2e45'},beginAtZero:true},y:{ticks:{color:'#94a3b8'},grid:{display:false}}}}});
+}
+</script>
+<script src="js/utils.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/guards.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

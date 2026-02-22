@@ -1,0 +1,146 @@
+0;font-size:.95rem}
+.modal-body{padding:1.25rem;display:flex;flex-direction:column;gap:.75rem}
+.modal-body label{font-size:.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.07em}
+.modal-body .form-input{width:100%;box-sizing:border-box}
+</style>
+<script>
+let devChart, qualChart;
+
+const DEMO_ASSETS = [
+  {id:1,name:'CNC Press Twin v2',machine_code:'M-01',machine_name:'CNC Press',status:'active',last_sync_at:new Date(Date.now()-3600000).toISOString(),parameters:{accuracy:'±0.02mm',material:'Steel',max_speed:'3000 RPM'}},
+  {id:2,name:'Assembly Station Twin',machine_code:'M-02',machine_name:'Assembly Station',status:'active',last_sync_at:new Date(Date.now()-7200000).toISOString(),parameters:{cycle_time:'45s',stations:8,capacity:'800/shift'}},
+  {id:3,name:'Welding Unit Digital Model',machine_code:'M-03',machine_name:'Welding Unit',status:'updating',last_sync_at:new Date(Date.now()-86400000).toISOString(),parameters:{welding_type:'MIG',wire_speed:'5m/min',voltage:'24V'}},
+  {id:4,name:'Paint Line Simulation',machine_code:'M-04',machine_name:'Paint Line',status:'inactive',last_sync_at:null,parameters:{booth_count:3,cure_temp:'180°C',throughput:'200 units/hr'}},
+];
+
+document.addEventListener('DOMContentLoaded', () => {
+  const user = initAppShell('Digital Twin');
+  if (!user) return;
+  loadAssets();
+  renderCharts();
+  updateSimulation();
+});
+
+async function loadAssets() {
+  let data;
+  try { data = await qmsApi('/api/q40/digital-twin/assets'); if (!data.length) data = DEMO_ASSETS; }
+  catch { data = DEMO_ASSETS; }
+
+  const el = document.getElementById('twinGrid');
+  el.innerHTML = data.map(a => `
+    <div class="twin-card">
+      <div class="twin-card-header">
+        <div class="twin-icon"><i class="fas fa-cube"></i></div>
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:.88rem">${a.name}</div>
+          <div style="font-size:.72rem;color:var(--text-muted)">${a.machine_code||''} — ${a.machine_name||''}</div>
+        </div>
+        <div class="twin-status-dot ${a.status==='active'?'active':'inactive'}" title="${a.status}"></div>
+      </div>
+      <div class="twin-metrics">
+        ${Object.entries(a.parameters||{}).slice(0,4).map(([k,v])=>`
+          <div class="twin-metric">
+            <div class="twin-metric-label">${k.replace(/_/g,' ')}</div>
+            <div class="twin-metric-value">${v}</div>
+          </div>
+        `).join('')}
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.25rem">
+        <span style="font-size:.68rem;font-family:var(--font-mono);padding:.2rem .5rem;border-radius:20px;background:${a.status==='active'?'var(--emerald-dim)':a.status==='updating'?'var(--amber-dim)':'var(--bg-hover)'};color:${a.status==='active'?'var(--emerald)':a.status==='updating'?'var(--amber)':'var(--text-muted)'}">${a.status.toUpperCase()}</span>
+        <span style="font-size:.68rem;color:var(--text-muted)">${a.last_sync_at ? 'Sync: ' + new Date(a.last_sync_at).toLocaleTimeString() : 'Never synced'}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderCharts() {
+  const months = ['Aug','Sep','Oct','Nov','Dec','Jan','Feb'];
+  const planned = [1200,1350,1300,1450,1400,1500,1480];
+  const actual  = [1140,1280,1350,1390,1460,1510,1445];
+
+  if (devChart) devChart.destroy();
+  devChart = new Chart(document.getElementById('deviationChart').getContext('2d'), {
+    type:'bar',
+    data:{
+      labels:months,
+      datasets:[
+        {label:'Planned',data:planned,backgroundColor:'rgba(167,139,250,0.5)',borderRadius:4},
+        {label:'Actual',data:actual,backgroundColor:'rgba(34,211,238,0.6)',borderRadius:4},
+      ]
+    },
+    options:{responsive:true,plugins:{legend:{labels:{color:'#94a3b8'}}},scales:{x:{ticks:{color:'#64748b'},grid:{color:'#1a2e45'}},y:{ticks:{color:'#64748b'},grid:{color:'#1a2e45'},beginAtZero:false}}}
+  });
+
+  const expQual = [99.5,99.6,99.7,99.8,99.8,99.9,99.9];
+  const measQual = [99.2,99.4,99.8,99.6,99.9,99.7,99.8];
+  if (qualChart) qualChart.destroy();
+  qualChart = new Chart(document.getElementById('qualityCompareChart').getContext('2d'), {
+    type:'line',
+    data:{
+      labels:months,
+      datasets:[
+        {label:'Expected FPY %',data:expQual,borderColor:'rgba(167,139,250,0.8)',borderDash:[6,3],borderWidth:2,pointRadius:3,fill:false},
+        {label:'Measured FPY %',data:measQual,borderColor:'#22d3ee',backgroundColor:'rgba(34,211,238,0.07)',borderWidth:2,fill:true,pointRadius:4},
+      ]
+    },
+    options:{responsive:true,plugins:{legend:{labels:{color:'#94a3b8'}}},scales:{x:{ticks:{color:'#64748b'},grid:{color:'#1a2e45'}},y:{ticks:{color:'#64748b'},grid:{color:'#1a2e45'},min:98.5,max:100}}}
+  });
+}
+
+function updateSimulation() {
+  const temp = parseInt(document.getElementById('simTemp').value);
+  const speed = parseInt(document.getElementById('simSpeed').value);
+  const grade = document.getElementById('simGrade').value;
+  const skill = document.getElementById('simSkill').value;
+
+  document.getElementById('simTempVal').textContent = temp;
+  document.getElementById('simSpeedVal').textContent = speed;
+
+  // Simple simulation model
+  let basePPM = 800;
+  if (temp > 30) basePPM += (temp - 30) * 40;
+  if (temp < 18) basePPM += (18 - temp) * 30;
+  if (speed > 105) basePPM += (speed - 105) * 20;
+  if (speed < 80) basePPM += (80 - speed) * 15;
+  basePPM += {A:0, B:200, C:500}[grade];
+  basePPM += {expert:0, skilled:150, trainee:400}[skill];
+  basePPM = Math.max(100, basePPM + (Math.random() - 0.5) * 100);
+
+  const fpy = Math.max(95, 100 - basePPM / 10000 * 100);
+  const risk = basePPM < 500 ? 'LOW' : basePPM < 1500 ? 'MEDIUM' : basePPM < 3000 ? 'HIGH' : 'CRITICAL';
+  const riskColor = {LOW:'var(--emerald)',MEDIUM:'var(--amber)',HIGH:'var(--red)',CRITICAL:'var(--red)'}[risk];
+  const throughput = Math.round(1000 * (speed / 100) * (grade === 'A' ? 0.98 : grade === 'B' ? 0.95 : 0.90));
+
+  document.getElementById('simPPM').textContent = fmt(Math.round(basePPM));
+  document.getElementById('simFPY').textContent = fmtPct(fpy, 2);
+  document.getElementById('simRisk').textContent = risk;
+  document.getElementById('simRisk').style.color = riskColor;
+  document.getElementById('simThroughput').textContent = fmt(throughput) + '/hr';
+}
+
+function showAddTwin() { document.getElementById('addTwinModal').style.display = 'flex'; }
+function closeModal() { document.getElementById('addTwinModal').style.display = 'none'; }
+
+async function saveTwin() {
+  const payload = {
+    name: document.getElementById('twinName').value,
+    machine_id: document.getElementById('twinMachine').value,
+    virtual_model_reference: document.getElementById('twinRef').value,
+    status: document.getElementById('twinStatus').value,
+  };
+  if (!payload.name) { showToast('Asset name is required', 'error'); return; }
+  try {
+    await qmsApi('/api/q40/digital-twin/assets', 'POST', payload);
+    showToast('Digital asset created!', 'success');
+    closeModal();
+    loadAssets();
+  } catch { showToast('Asset created (demo mode)', 'info'); closeModal(); }
+}
+</script>
+<script src="js/utils.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/guards.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

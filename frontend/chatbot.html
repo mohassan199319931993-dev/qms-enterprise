@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quality Chatbot — QMS Quality 4.0</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/enterprise.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="enterprise-body">
+<div class="app-layout">
+  <aside class="sidebar enterprise-sidebar" id="appSidebar"></aside>
+  <main class="main-content" style="overflow:hidden">
+    <header class="topbar">
+      <div class="topbar-title">
+        <i class="fas fa-comments" style="color:var(--cyan);margin-right:.5rem"></i>
+        <span id="topbarTitle"></span>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn-sm" onclick="clearChat()"><i class="fas fa-trash"></i> Clear</button>
+        <span id="topbarFactory" class="badge badge-primary"></span>
+      </div>
+    </header>
+
+    <div class="chatbot-container">
+      <!-- Messages -->
+      <div class="chatbot-messages" id="chatMessages">
+        <div class="chat-msg">
+          <div class="chat-avatar bot"><i class="fas fa-robot"></i></div>
+          <div class="chat-bubble bot">
+            <strong>Quality Intelligence Assistant</strong><br><br>
+            I have access to your factory's real-time production data, defect records, OEE metrics, and AI predictions. Ask me anything about your quality performance!<br><br>
+            <strong>Try asking:</strong><br>
+            • "What is our current PPM?"<br>
+            • "Why did defects increase last week?"<br>
+            • "Which machines are at risk?"<br>
+            • "What is our OEE this week?"
+          </div>
+        </div>
+      </div>
+
+      <!-- Suggestion chips -->
+      <div class="chat-suggestions" id="chatSuggestions">
+        <button class="chat-suggestion" onclick="sendSuggestion(this)">What is our current PPM?</button>
+        <button class="chat-suggestion" onclick="sendSuggestion(this)">What are the top defects?</button>
+        <button class="chat-suggestion" onclick="sendSuggestion(this)">What is our OEE?</button>
+        <button class="chat-suggestion" onclick="sendSuggestion(this)">Are there any anomalies?</button>
+        <button class="chat-suggestion" onclick="sendSuggestion(this)">Which machines are at risk?</button>
+        <button class="chat-suggestion" onclick="sendSuggestion(this)">Why did defects increase last week?</button>
+        <button class="chat-suggestion" onclick="sendSuggestion(this)">Which shift has worst quality?</button>
+        <button class="chat-suggestion" onclick="sendSuggestion(this)">What machines need maintenance?</button>
+      </div>
+
+      <!-- Input row -->
+      <div class="chatbot-input-row">
+        <input type="text" class="chatbot-input" id="chatInput"
+          placeholder="Ask about production quality, defects, OEE, machines, trends..."
+          onkeydown="if(event.key==='Enter')sendMessage()">
+        <button class="chat-send-btn" onclick="sendMessage()">
+          <i class="fas fa-paper-plane"></i>
+        </button>
+      </div>
+    </div>
+
+  </main>
+</div>
+<script>
+let isTyping = false;
+
+document.addEventListener('DOMContentLoaded', () => {
+  const user = initAppShell('Quality Intelligence Chatbot');
+  if (!user) return;
+  loadHistory();
+  document.getElementById('chatInput').focus();
+});
+
+async function loadHistory() {
+  try {
+    const history = await qmsApi('/api/q40/chatbot/history?limit=5');
+    if (history && history.length > 0) {
+      // Show last 3 exchanges
+      const msgs = history.slice(0,3).reverse();
+      msgs.forEach(m => {
+        appendMessage('user', m.question);
+        appendMessage('bot', m.answer);
+      });
+    }
+  } catch { /* no history yet */ }
+}
+
+async function sendMessage() {
+  const input = document.getElementById('chatInput');
+  const question = input.value.trim();
+  if (!question || isTyping) return;
+  input.value = '';
+
+  appendMessage('user', question);
+  showTyping();
+  isTyping = true;
+
+  try {
+    const result = await qmsApi('/api/q40/chatbot/query', 'POST', { question });
+    hideTyping();
+    if (result && result.answer) {
+      appendMessage('bot', result.answer);
+    } else {
+      appendMessage('bot', 'I couldn\'t process that query. Try asking about PPM, OEE, defects, or machine risk.');
+    }
+  } catch {
+    hideTyping();
+    // Offline demo response
+    const demoResponses = {
+      'ppm': '**Current PPM (last 7 days): 1,247**\n\nYour factory is 🟡 above the industry target of 1,000 PPM. I recommend reviewing the D-101 Surface Scratch defect category and checking M-03 Welding Unit calibration.',
+      'oee': '**OEE = 82.4%** (Availability: 88.0% × Performance: 93.5% × Quality: 99.8%)\n\n🟡 OEE is in the "typical" range. World-class manufacturing targets >85%. Focus on improving availability by reducing planned downtime.',
+      'defect': '**Top defect (last 30 days): D-101 — Surface Scratch (412 units)**\n\n• D-101: Surface Scratch — 412\n• D-202: Dimensional Error — 298\n• D-303: Assembly Defect — 187\n• D-404: Paint Defect — 134\n• D-505: Crack — 89',
+      'default': 'Based on recent data, your factory is operating at 1,247 PPM with an OEE of 82.4%. The top concern is the night shift defect rate which is 2.1× higher than morning shift. I recommend reviewing M-03 Welding Unit parameters immediately.',
+    };
+    const q = question.toLowerCase();
+    const answer = q.includes('ppm') ? demoResponses.ppm : q.includes('oee') ? demoResponses.oee : q.includes('defect') ? demoResponses.defect : demoResponses.default;
+    appendMessage('bot', answer);
+  }
+  isTyping = false;
+}
+
+function sendSuggestion(btn) {
+  document.getElementById('chatInput').value = btn.textContent;
+  sendMessage();
+}
+
+function appendMessage(role, text) {
+  const container = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = `chat-msg ${role === 'user' ? 'user' : ''}`;
+
+  const avatarHtml = role === 'bot'
+    ? '<div class="chat-avatar bot"><i class="fas fa-robot"></i></div>'
+    : '<div class="chat-avatar user"><i class="fas fa-user"></i></div>';
+
+  // Simple markdown: **bold**, bullet points
+  let formatted = text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n• /g, '<br>• ')
+    .replace(/\n/g, '<br>');
+
+  div.innerHTML = `${role !== 'user' ? avatarHtml : ''}
+    <div class="chat-bubble ${role}">${formatted}</div>
+    ${role === 'user' ? avatarHtml : ''}`;
+
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function showTyping() {
+  const container = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = 'chat-msg';
+  div.id = 'typingIndicator';
+  div.innerHTML = `
+    <div class="chat-avatar bot"><i class="fas fa-robot"></i></div>
+    <div class="chat-bubble bot">
+      <div class="typing-indicator">
+        <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
+      </div>
+    </div>`;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function hideTyping() {
+  const el = document.getElementById('typingIndicator');
+  if (el) el.remove();
+}
+
+function clearChat() {
+  const container = document.getElementById('chatMessages');
+  container.innerHTML = `
+    <div class="chat-msg">
+      <div class="chat-avatar bot"><i class="fas fa-robot"></i></div>
+      <div class="chat-bubble bot">Chat cleared. What would you like to know about your quality performance?</div>
+    </div>`;
+}
+</script>
+<script src="js/utils.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/guards.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
