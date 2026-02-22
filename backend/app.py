@@ -87,8 +87,9 @@ def create_app(config_name=None):
     app.register_blueprint(q40_bp, url_prefix='/api/q40')
 
     # ── الصفحة الرئيسية ─────────────────────────────
-    @app.route('/')
-    def home():
+    @app.route('/', defaults={'path': ''})
+    @app.route('/<path:path>')
+    def serve(path):
         return app.send_static_file('index.html')
 
     # ── Health endpoint ─────────────────────────────
