@@ -1,53 +1,80 @@
+# ═══════════════════════════════════════════════════════════════
+#  QMS Enterprise — Docker Compose (local dev / self-hosted)
+#  NOT used on Railway — Railway uses root Dockerfile directly
+# ═══════════════════════════════════════════════════════════════
 version: '3.9'
 
 services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: qms_db
-      POSTGRES_USER: qms_user
+      POSTGRES_DB:       qms_db
+      POSTGRES_USER:     qms_user
       POSTGRES_PASSWORD: qms_pass
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
-      - ./database/schema_v2.sql:/docker-entrypoint-initdb.d/02_schema_v2.sql
-      - ./database/seed.sql:/docker-entrypoint-initdb.d/03_seed.sql
-      - ./database/schema_v3.sql:/docker-entrypoint-initdb.d/04_schema_v3.sql
-      - ./database/schema_v4.sql:/docker-entrypoint-initdb.d/05_schema_v4.sql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./database/schema_v2.sql:/docker-entrypoint-initdb.d/02_schema_v2.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/03_seed.sql:ro
+      - ./database/schema_v3.sql:/docker-entrypoint-initdb.d/04_schema_v3.sql:ro
+      - ./database/schema_v4.sql:/docker-entrypoint-initdb.d/05_schema_v4.sql:ro
     ports:
       - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U qms_user -d qms_db"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
+  # ── Redis ───────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 5
 
+  # ── Backend (Flask + Gunicorn) ──────────────────────────────
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: Dockerfile
     environment:
-      FLASK_ENV: production
-      DATABASE_URL: postgresql://qms_user:qms_pass@db:5432/qms_db
-      JWT_SECRET_KEY: change-me-in-production-jwt-secret-32chars
-      SECRET_KEY: change-me-in-production-flask-secret
-      REDIS_URL: redis://redis:6379/0
-      CORS_ORIGINS: http://localhost,http://localhost:80
-      MODEL_DIR: /app/ai_models
+      FLASK_ENV:       production
+      PORT:            8000
+      DATABASE_URL:    postgresql://qms_user:qms_pass@db:5432/qms_db
+      JWT_SECRET_KEY:  change-me-in-production-jwt-secret-32chars
+      SECRET_KEY:      change-me-in-production-flask-secret-key
+      REDIS_URL:       redis://redis:6379/0
+      CORS_ORIGINS:    "*"
+      MODEL_DIR:       /tmp/ai_models
     volumes:
-      - ai_models:/app/ai_models
+      - ai_models:/tmp/ai_models
     ports:
-      - "5000:5000"
+      - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
+  # ── Nginx (reverse proxy + static) ─────────────────────────
   nginx:
-    image: nginx:alpine
+    image: nginx:1.25-alpine
     ports:
       - "80:80"
     volumes:
@@ -59,4 +86,5 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
   ai_models:

@@ -1,10 +1,10 @@
 """
-QMS Enterprise — Main Flask Application v3.1
-Industrial Quality Management Platform — Quality 4.0
+QMS Enterprise — Main Flask Application v3.2
+Railway-compatible: single container, Flask serves API + static files
 """
 import os
 import logging
-from flask import Flask
+from flask import Flask, send_from_directory, jsonify, abort
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from config import config
@@ -12,21 +12,32 @@ from models import db, bcrypt
 
 logger = logging.getLogger(__name__)
 
+# ── Resolve paths ─────────────────────────────────────────────────
+_BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
+_FRONT_DIR = os.path.abspath(os.path.join(_BASE_DIR, '..', 'frontend'))
+
 
 def create_app(config_name=None):
     if config_name is None:
-        config_name = os.environ.get('FLASK_ENV', 'development')
+        env = os.environ.get('FLASK_ENV', 'production')
+        if env not in ('development', 'production', 'testing'):
+            env = 'production'
+        config_name = env
 
-    app = Flask(__name__, static_folder='frontend', static_url_path='/')
+    app = Flask(
+        __name__,
+        static_folder=_FRONT_DIR,
+        static_url_path='',
+    )
     app.config.from_object(config[config_name])
 
-    # ── Core extensions ────────────────────────────────────────
+    # ── Extensions ────────────────────────────────────────────────
     db.init_app(app)
     bcrypt.init_app(app)
     JWTManager(app)
-    CORS(app, origins=app.config.get('CORS_ORIGINS', ['*']), supports_credentials=True)
+    CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
 
-    # ── WebSocket (SocketIO) optional ──────────────────────────
+    # ── WebSocket (optional, degrades gracefully) ─────────────────
     socketio = None
     try:
         from flask_socketio import SocketIO
@@ -36,82 +47,107 @@ def create_app(config_name=None):
             async_mode="eventlet",
             logger=False,
             engineio_logger=False,
+            path='/socket.io',
         )
         app.extensions["socketio"] = socketio
 
         @socketio.on("connect")
-        def handle_connect():
-            logger.info("WebSocket client connected")
+        def _on_connect():
+            logger.info("WS client connected")
 
         @socketio.on("disconnect")
-        def handle_disconnect():
-            logger.info("WebSocket client disconnected")
+        def _on_disconnect():
+            logger.info("WS client disconnected")
 
         @socketio.on("subscribe_kpi")
-        def handle_subscribe(data):
+        def _on_subscribe(data):
             from flask_socketio import join_room
-            factory_id = data.get("factory_id")
-            if factory_id:
-                join_room(f"factory_{factory_id}")
+            fid = data.get("factory_id")
+            if fid:
+                join_room(f"factory_{fid}")
 
     except ImportError:
-        logger.warning("flask-socketio not installed. Real-time push disabled.")
+        logger.warning("flask-socketio not installed — real-time push disabled")
 
-    # ── Import models so SQLAlchemy registers them ─────────────
+    # ── Register models ────────────────────────────────────────────
     with app.app_context():
-        from models.user_model import User, PasswordReset, RefreshToken, AuditLog
-        from models.factory_model import Factory
-        from models.role_model import Role, Permission
+        try:
+            from models.user_model    import User, PasswordReset, RefreshToken, AuditLog  # noqa
+            from models.factory_model import Factory   # noqa
+            from models.role_model    import Role, Permission  # noqa
+        except Exception as e:
+            logger.warning(f"Model import warning: {e}")
 
-    # ── Blueprints ─────────────────────────────────────────────
-    from routes.auth_routes    import auth_bp
-    from routes.role_routes    import role_bp
-    from routes.factory_routes import factory_bp
-    from routes.user_routes    import user_bp
-    from routes.library_routes import library_bp
-    from routes.forms_routes   import forms_bp
-    from routes.quality_routes import quality_bp
-    from routes.ai_routes      import ai_bp
-    from routes.reports_routes import reports_bp
-    from routes.q40_routes     import q40_bp
+    # ── Blueprints ────────────────────────────────────────────────
+    try:
+        from routes.auth_routes    import auth_bp
+        from routes.role_routes    import role_bp
+        from routes.factory_routes import factory_bp
+        from routes.user_routes    import user_bp
+        from routes.library_routes import library_bp
+        from routes.forms_routes   import forms_bp
+        from routes.quality_routes import quality_bp
+        from routes.ai_routes      import ai_bp
+        from routes.reports_routes import reports_bp
+        from routes.q40_routes     import q40_bp
 
-    app.register_blueprint(auth_bp,     url_prefix='/api/auth')
-    app.register_blueprint(role_bp,     url_prefix='/api/roles')
-    app.register_blueprint(factory_bp,  url_prefix='/api/factories')
-    app.register_blueprint(user_bp,     url_prefix='/api/users')
-    app.register_blueprint(library_bp,  url_prefix='/api/library')
-    app.register_blueprint(forms_bp,    url_prefix='/api/forms')
-    app.register_blueprint(quality_bp,  url_prefix='/api/quality')
-    app.register_blueprint(ai_bp, url_prefix='/api/ai')
-    app.register_blueprint(reports_bp, url_prefix='/api/reports')
-    app.register_blueprint(q40_bp, url_prefix='/api/q40')
+        app.register_blueprint(auth_bp,     url_prefix='/api/auth')
+        app.register_blueprint(role_bp,     url_prefix='/api/roles')
+        app.register_blueprint(factory_bp,  url_prefix='/api/factories')
+        app.register_blueprint(user_bp,     url_prefix='/api/users')
+        app.register_blueprint(library_bp,  url_prefix='/api/library')
+        app.register_blueprint(forms_bp,    url_prefix='/api/forms')
+        app.register_blueprint(quality_bp,  url_prefix='/api/quality')
+        app.register_blueprint(ai_bp,       url_prefix='/api/ai')
+        app.register_blueprint(reports_bp,  url_prefix='/api/reports')
+        app.register_blueprint(q40_bp,      url_prefix='/api/q40')
+    except Exception as e:
+        logger.error(f"Blueprint registration error: {e}")
 
-    # ── الصفحة الرئيسية ─────────────────────────────
-    @app.route('/')
-    def home():
-        return app.send_static_file('login.html')
-
-    @app.route('/', defaults={'path': ''})
-    @app.route('/<path:path>')
-    def serve(path):
-        return app.send_static_file('login.html')
-
-    # ── Health endpoint ─────────────────────────────
+    # ── Health check ───────────────────────────────────────────────
     @app.route('/api/health')
     def health():
-        return {
-            "status": "ok",
-            "version": "3.1.0",
-            "platform": "QMS Enterprise — Quality 4.0",
+        return jsonify({
+            "status":    "ok",
+            "version":   "3.2.0",
+            "platform":  "QMS Enterprise — Quality 4.0",
             "websocket": socketio is not None,
-            "modules": [
-                "auth", "quality", "forms", "ai", "reports", "library",
-                "iot", "spc", "maintenance", "chatbot", "rca",
-                "traceability", "digital-twin"
-            ]
-        }
+            "frontend":  os.path.isdir(_FRONT_DIR),
+        })
 
-    # ── Background Scheduler ───────────────────────────────────
+    # ── Root → index.html ──────────────────────────────────────────
+    @app.route('/')
+    def root():
+        index_path = os.path.join(_FRONT_DIR, 'index.html')
+        if os.path.isfile(index_path):
+            return send_from_directory(_FRONT_DIR, 'index.html')
+        return jsonify({"status": "ok", "message": "QMS Enterprise API running", "docs": "/api/health"})
+
+    # ── SPA catch-all ──────────────────────────────────────────────
+    @app.route('/<path:path>')
+    def spa(path):
+        # Let /api/* and /socket.io/ pass through — they're handled above
+        if path.startswith('api/') or path.startswith('socket.io'):
+            abort(404)
+
+        # Serve static file if it exists
+        target = os.path.join(_FRONT_DIR, path)
+        if os.path.isfile(target):
+            return send_from_directory(_FRONT_DIR, path)
+
+        # HTML pages — try .html suffix
+        if not path.endswith('.html'):
+            html_target = os.path.join(_FRONT_DIR, path + '.html')
+            if os.path.isfile(html_target):
+                return send_from_directory(_FRONT_DIR, path + '.html')
+
+        # SPA fallback
+        index_path = os.path.join(_FRONT_DIR, 'index.html')
+        if os.path.isfile(index_path):
+            return send_from_directory(_FRONT_DIR, 'index.html')
+        return jsonify({"status": "ok", "message": "QMS Enterprise API"}), 200
+
+    # ── Background Scheduler ───────────────────────────────────────
     if not app.config.get('TESTING'):
         try:
             from ai.scheduler import start_scheduler
@@ -119,18 +155,20 @@ def create_app(config_name=None):
         except Exception as e:
             logger.warning(f"Scheduler not started: {e}")
 
-    # ── KPI broadcast helper ───────────────────────────────────
+    # ── KPI broadcast helper ───────────────────────────────────────
     if socketio:
         def broadcast_kpi(factory_id: int, data: dict):
             socketio.emit("kpi_update", data, room=f"factory_{factory_id}")
         app.broadcast_kpi = broadcast_kpi
 
+    logger.info(f"QMS Enterprise started | frontend={_FRONT_DIR} | exists={os.path.isdir(_FRONT_DIR)}")
     return app, socketio
 
 
 if __name__ == '__main__':
-    app, socketio = create_app()
-    if socketio:
-        socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    port = int(os.environ.get('PORT', 8000))
+    _app, _socketio = create_app()
+    if _socketio:
+        _socketio.run(_app, host='0.0.0.0', port=port, debug=False)
     else:
-        app.run(host='0.0.0.0', port=5000, debug=True)
+        _app.run(host='0.0.0.0', port=port, debug=False)

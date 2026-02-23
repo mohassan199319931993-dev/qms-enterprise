@@ -1,0 +1,1 @@
+web: cd backend && gunicorn --bind 0.0.0.0:${PORT:-8000} --workers 2 --worker-class eventlet --worker-connections 1000 --timeout 120 --keepalive 5 --access-logfile - --error-logfile - wsgi:application

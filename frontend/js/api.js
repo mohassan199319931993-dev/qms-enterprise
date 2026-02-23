@@ -1,10 +1,11 @@
 /**
  * QMS Enterprise — Unified API Client v3.1
- * Central HTTP + WebSocket client for all pages.
+ * Railway-compatible: uses relative /api/* paths (no hardcoded host)
  */
 
-const API_BASE = window.QMS_API_BASE || 'http://localhost:5000/api';
-const WS_BASE  = window.QMS_WS_BASE  || 'http://localhost:5000';
+// Use relative path so it works on any domain (Railway, local, custom domain)
+const API_BASE = '/api';
+const WS_BASE  = window.location.origin;
 
 // ─────────────────────────────────────────────────────────────────
 // CORE HTTP
@@ -72,7 +73,7 @@ const _wsHandlers = {};
 
 function initWebSocket(factoryId) {
   if (typeof io === 'undefined' || (_socket && _socket.connected)) return;
-  _socket = io(WS_BASE, { transports: ['websocket', 'polling'] });
+  _socket = io(WS_BASE, { transports: ['websocket', 'polling'], path: '/socket.io' });
   _socket.on('connect', () => {
     if (factoryId) _socket.emit('subscribe_kpi', { factory_id: factoryId });
   });
@@ -87,12 +88,13 @@ function onWsEvent(event, handler) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// UNIFIED API
+// UNIFIED API OBJECT
 // ─────────────────────────────────────────────────────────────────
 const API = {
   get:        (ep)       => apiRequest(ep, 'GET'),
   post:       (ep, body) => apiRequest(ep, 'POST', body),
   put:        (ep, body) => apiRequest(ep, 'PUT',  body),
+  patch:      (ep, body) => apiRequest(ep, 'PATCH', body),
   delete:     (ep)       => apiRequest(ep, 'DELETE'),
   postPublic: (ep, body) => apiRequest(ep, 'POST', body, true),
 
@@ -104,11 +106,11 @@ const API = {
   resetPassword:  (d) => API.postPublic('/auth/reset-password', d),
 
   // Users
-  getMe:          ()     => API.get('/users/me'),
-  updateMe:       (d)    => API.put('/users/me', d),
-  getUsers:       ()     => API.get('/users/'),
-  toggleUser:     (id)   => API.put(`/users/${id}/toggle-active`),
-  changePassword: (d)    => API.put('/users/me/password', d),
+  getMe:          ()        => API.get('/users/me'),
+  updateMe:       (d)       => API.put('/users/me', d),
+  getUsers:       ()        => API.get('/users/'),
+  toggleUser:     (id)      => API.put(`/users/${id}/toggle-active`),
+  changePassword: (d)       => API.put('/users/me/password', d),
 
   // Roles
   getRoles:       ()        => API.get('/roles/'),
@@ -122,36 +124,35 @@ const API = {
   getMyFactory: () => API.get('/factories/mine'),
 
   // Quality
-  getDefects:     (p='')     => API.get(`/quality/defects${p}`),
+  getDefects:     (p = '')   => API.get(`/quality/defects${p}`),
   createDefect:   (d)        => API.post('/quality/defects', d),
-  updateDefect:   (id, d)    => API.put(`/quality/defects/${id}`, d),
+  updateDefect:   (id, d)    => API.patch(`/quality/defects/${id}`, d),
   deleteDefect:   (id)       => API.delete(`/quality/defects/${id}`),
   getKPIs:        (days=30)  => API.get(`/quality/kpis?days=${days}`),
   getDefectCodes: ()         => API.get('/quality/defect-codes'),
   getMachines:    ()         => API.get('/quality/machines'),
 
   // AI
-  trainModel:           ()         => API.post('/ai/train', {}),
-  predictDefect:        (d)        => API.post('/ai/predict', d),
-  getAnomalies:         (days=30)  => API.get(`/ai/anomalies?days=${days}`),
-  recommend:            (d)        => API.post('/ai/recommend', d),
-  getForecast:          (days=7)   => API.get(`/ai/forecast?days=${days}`),
-  getModelInfo:         ()         => API.get('/ai/model-info'),
-  getModelVersions:     ()         => API.get('/ai/versions'),
-  rcaPredict:           (d)        => API.post('/ai/rca/predict', d),
-  rcaClusters:          (days=30)  => API.get(`/ai/rca/clusters?days=${days}`),
-  rcaFeatureImportance: ()         => API.get('/ai/rca/feature-importance'),
+  trainModel:           ()        => API.post('/ai/train', {}),
+  predictDefect:        (d)       => API.post('/ai/predict', d),
+  getAnomalies:         (days=30) => API.get(`/ai/anomalies?days=${days}`),
+  recommend:            (d)       => API.post('/ai/recommend', d),
+  getForecast:          (days=7)  => API.get(`/ai/forecast?days=${days}`),
+  getModelInfo:         ()        => API.get('/ai/model-info'),
+  getModelVersions:     ()        => API.get('/ai/versions'),
+  rcaPredict:           (d)       => API.post('/ai/rca/predict', d),
+  rcaClusters:          (days=30) => API.get(`/ai/rca/clusters?days=${days}`),
+  rcaFeatureImportance: ()        => API.get('/ai/rca/feature-importance'),
 
   // Q40 KPIs
   getQ40KPIs: (days=30) => API.get(`/q40/kpis?days=${days}`),
 
   // IoT
-  getDevices:        (mid)   => API.get(`/q40/iot/devices${mid ? '?machine_id=' + mid : ''}`),
-  createDevice:      (d)     => API.post('/q40/iot/devices', d),
-  ingestSensor:      (d)     => API.post('/q40/iot/ingest', d),
-  getSensorSummary:  (h=1)   => API.get(`/q40/iot/summary?hours=${h}`),
-  getSensorTimeseries:(devId, metric, h) =>
-    API.get(`/q40/iot/timeseries?device_id=${devId}&metric=${metric}&hours=${h}`),
+  getDevices:         (mid)          => API.get(`/q40/iot/devices${mid ? '?machine_id=' + mid : ''}`),
+  createDevice:       (d)            => API.post('/q40/iot/devices', d),
+  ingestSensor:       (d)            => API.post('/q40/iot/ingest', d),
+  getSensorSummary:   (h = 1)        => API.get(`/q40/iot/summary?hours=${h}`),
+  getSensorTimeseries: (devId, m, h) => API.get(`/q40/iot/timeseries?device_id=${devId}&metric=${m}&hours=${h}`),
 
   // SPC
   getCpk:          (mid, m, usl, lsl, days) =>
@@ -168,8 +169,7 @@ const API = {
   getSchedule:          ()     => API.get('/q40/maintenance/schedule'),
   getRiskScores:        ()     => API.get('/q40/maintenance/risk-scores'),
   generateRiskScores:   ()     => API.post('/q40/maintenance/risk-scores/generate', {}),
-  getMaintenanceEvents: (mid)  =>
-    API.get(`/q40/maintenance/events${mid ? '?machine_id=' + mid : ''}`),
+  getMaintenanceEvents: (mid)  => API.get(`/q40/maintenance/events${mid ? '?machine_id=' + mid : ''}`),
   createMaintenanceEvent: (d)  => API.post('/q40/maintenance/events', d),
 
   // Chatbot

@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QMS Enterprise — Quality 4.0 Platform</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230f172a'/><text y='24' x='4' font-size='22' fill='%2300d4ff'>Q</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #060d1a;
+      --bg-card:   #0d1929;
+      --bg-card2:  #111f35;
+      --border:    rgba(255,255,255,.07);
+      --border-hl: rgba(0,212,255,.3);
+      --cyan:      #00d4ff;
+      --cyan-dim:  rgba(0,212,255,.12);
+      --violet:    #818cf8;
+      --emerald:   #34d399;
+      --amber:     #f59e0b;
+      --red:       #ef4444;
+      --t1:        #f1f5f9;
+      --t2:        #94a3b8;
+      --t3:        #475569;
+      --font:      'Inter', system-ui, sans-serif;
+      --mono:      'JetBrains Mono', monospace;
+    }
+
+    html { font-size: 15px; scroll-behavior: smooth; }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--t1);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── ANIMATED BACKGROUND ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 20% -10%, rgba(0,212,255,.08) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 100%, rgba(129,140,248,.07) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    /* ── TOPBAR ── */
+    .topbar {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: 60px; z-index: 200;
+      background: rgba(6,13,26,.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 2rem;
+    }
+    .topbar-brand { display: flex; align-items: center; gap: .75rem; text-decoration: none; }
+    .brand-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--cyan), var(--violet));
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; color: #fff;
+      box-shadow: 0 0 20px rgba(0,212,255,.3);
+    }
+    .brand-name { font-size: .95rem; font-weight: 700; color: var(--t1); letter-spacing: -.01em; }
+    .brand-version { font-size: .65rem; color: var(--cyan); font-family: var(--mono); }
+
+    .topbar-nav { display: flex; align-items: center; gap: .25rem; }
+    .nav-item {
+      display: flex; align-items: center; gap: .4rem;
+      padding: .45rem .85rem; border-radius: 8px;
+      color: var(--t2); font-size: .825rem; text-decoration: none;
+      transition: all .15s; border: none; background: none; cursor: pointer;
+    }
+    .nav-item:hover { color: var(--t1); background: rgba(255,255,255,.06); }
+    .nav-item.cta {
+      background: var(--cyan); color: #000; font-weight: 600;
+      padding: .45rem 1.1rem;
+    }
+    .nav-item.cta:hover { background: #33ddff; }
+
+    .hamburger { display: none; background: none; border: none; color: var(--t1); font-size: 1.2rem; cursor: pointer; }
+
+    @media (max-width: 768px) {
+      .topbar-nav { display: none; }
+      .topbar-nav.open { display: flex; flex-direction: column; align-items: stretch; position: fixed; top: 60px; left: 0; right: 0; background: var(--bg-card); border-bottom: 1px solid var(--border); padding: .75rem; gap: .25rem; z-index: 199; }
+      .hamburger { display: block; }
+    }
+
+    /* ── HERO ── */
+    .hero {
+      position: relative; z-index: 1;
+      min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; padding: 6rem 1.5rem 3rem;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: .5rem;
+      border: 1px solid var(--border-hl);
+      background: var(--cyan-dim);
+      color: var(--cyan);
+      padding: .35rem 1rem; border-radius: 999px;
+      font-size: .775rem; font-weight: 500; letter-spacing: .04em;
+      margin-bottom: 1.75rem;
+    }
+    .hero-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); animation: blink 1.5s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    .hero-title {
+      font-size: clamp(2.2rem, 5vw, 3.75rem);
+      font-weight: 800; line-height: 1.1; letter-spacing: -.03em;
+      max-width: 800px; margin-bottom: 1.5rem;
+    }
+    .hero-title span { color: var(--cyan); }
+
+    .hero-sub {
+      font-size: clamp(.9rem, 2vw, 1.125rem);
+      color: var(--t2); max-width: 560px; line-height: 1.7;
+      margin-bottom: 2.5rem;
+    }
+
+    .hero-cta { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: 3rem; }
+    .btn-main {
+      display: inline-flex; align-items: center; gap: .5rem;
+      padding: .8rem 1.75rem; border-radius: 10px;
+      font-size: .925rem; font-weight: 600; text-decoration: none;
+      transition: all .2s; cursor: pointer; border: none;
+    }
+    .btn-cyan { background: var(--cyan); color: #000; box-shadow: 0 0 24px rgba(0,212,255,.3); }
+    .btn-cyan:hover { background: #33ddff; transform: translateY(-2px); box-shadow: 0 4px 28px rgba(0,212,255,.45); }
+    .btn-outline { background: transparent; color: var(--t1); border: 1px solid var(--border-hl); }
+    .btn-outline:hover { background: var(--cyan-dim); color: var(--cyan); transform: translateY(-2px); }
+
+    .hero-stats { display: flex; gap: 2.5rem; justify-content: center; flex-wrap: wrap; }
+    .hero-stat-val { font-size: 1.75rem; font-weight: 800; font-family: var(--mono); color: var(--t1); }
+    .hero-stat-val span { color: var(--cyan); }
+    .hero-stat-label { font-size: .75rem; color: var(--t2); margin-top: .1rem; }
+
+    /* ── MODULES GRID ── */
+    .section { position: relative; z-index: 1; padding: 5rem 1.5rem; max-width: 1280px; margin: 0 auto; }
+    .section-label { font-size: .75rem; text-transform: uppercase; letter-spacing: .12em; color: var(--cyan); font-weight: 600; margin-bottom: .75rem; }
+    .section-title { font-size: clamp(1.6rem, 3vw, 2.25rem); font-weight: 700; letter-spacing: -.02em; margin-bottom: .75rem; }
+    .section-sub { color: var(--t2); max-width: 500px; line-height: 1.7; margin-bottom: 3rem; }
+
+    .modules-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+
+    .module-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.5rem;
+      text-decoration: none;
+      color: var(--t1);
+      transition: all .2s;
+      position: relative;
+      overflow: hidden;
+      display: block;
+    }
+    .module-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--card-accent, var(--cyan)), transparent);
+      opacity: 0; transition: opacity .2s;
+    }
+    .module-card:hover { border-color: rgba(255,255,255,.14); transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,.35); }
+    .module-card:hover::before { opacity: 1; }
+
+    .module-icon-wrap {
+      width: 44px; height: 44px; border-radius: 11px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 1rem; font-size: 1.1rem;
+      background: var(--icon-bg, rgba(0,212,255,.1));
+      color: var(--card-accent, var(--cyan));
+    }
+    .module-name { font-size: .925rem; font-weight: 600; margin-bottom: .35rem; }
+    .module-desc { font-size: .8rem; color: var(--t2); line-height: 1.6; }
+    .module-tag {
+      display: inline-flex; align-items: center; gap: .3rem;
+      margin-top: .75rem; font-size: .7rem; font-family: var(--mono);
+      color: var(--card-accent, var(--cyan)); opacity: .8;
+    }
+
+    /* ── FEATURES SECTION ── */
+    .features-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: .75rem; }
+    .feature-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.25rem;
+      display: flex; gap: .9rem; align-items: flex-start;
+    }
+    .feature-ico { font-size: 1.1rem; margin-top: .1rem; flex-shrink: 0; }
+    .feature-name { font-size: .875rem; font-weight: 600; margin-bottom: .25rem; }
+    .feature-desc { font-size: .775rem; color: var(--t2); line-height: 1.6; }
+
+    /* ── STATUS BAR ── */
+    .status-bar {
+      position: relative; z-index: 1;
+      background: var(--bg-card);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: .75rem 1.5rem;
+      display: flex; gap: 2rem; flex-wrap: wrap; justify-content: center; align-items: center;
+    }
+    .status-item { display: flex; align-items: center; gap: .5rem; font-size: .8rem; color: var(--t2); }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; }
+    .dot-green { background: var(--emerald); box-shadow: 0 0 8px rgba(52,211,153,.5); }
+    .dot-yellow { background: var(--amber); }
+    .dot-blue { background: var(--cyan); box-shadow: 0 0 8px rgba(0,212,255,.4); }
+
+    /* ── FOOTER ── */
+    footer {
+      position: relative; z-index: 1;
+      padding: 2rem 1.5rem;
+      border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;
+      max-width: 1280px; margin: 0 auto;
+    }
+    .footer-brand { display: flex; align-items: center; gap: .6rem; text-decoration: none; }
+    .footer-links { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+    .footer-links a { color: var(--t3); font-size: .8rem; text-decoration: none; transition: color .15s; }
+    .footer-links a:hover { color: var(--cyan); }
+    .footer-copy { font-size: .775rem; color: var(--t3); }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+    .fade-up { animation: fadeUp .5s ease both; }
+    .delay-1 { animation-delay: .1s; }
+    .delay-2 { animation-delay: .2s; }
+    .delay-3 { animation-delay: .3s; }
+
+    /* ── DIVIDER ── */
+    .divider { border: none; border-top: 1px solid var(--border); margin: 0; }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-hl); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<!-- ── TOPBAR ───────────────────────────────────────────── -->
+<header class="topbar">
+  <a class="topbar-brand" href="index.html">
+    <div class="brand-icon"><i class="fas fa-shield-halved"></i></div>
+    <div>
+      <div class="brand-name">QMS Enterprise</div>
+      <div class="brand-version">v3.2 · Quality 4.0</div>
+    </div>
+  </a>
+
+  <nav class="topbar-nav" id="topNav">
+    <a class="nav-item" href="dashboard.html"><i class="fas fa-gauge"></i> Dashboard</a>
+    <a class="nav-item" href="analytics.html"><i class="fas fa-chart-mixed"></i> Analytics</a>
+    <a class="nav-item" href="ai.html"><i class="fas fa-brain"></i> AI Module</a>
+    <a class="nav-item" href="reports.html"><i class="fas fa-file-chart-column"></i> Reports</a>
+    <a class="nav-item" href="login.html" id="loginBtn"><i class="fas fa-sign-in-alt"></i> Login</a>
+    <a class="nav-item cta" href="admin-register.html" id="getStartedBtn">Get Started</a>
+  </nav>
+
+  <button class="hamburger" onclick="toggleNav()" id="menuBtn">
+    <i class="fas fa-bars"></i>
+  </button>
+</header>
+
+<!-- ── HERO ─────────────────────────────────────────────── -->
+<section class="hero">
+  <div class="hero-badge fade-up">
+    <div class="hero-badge-dot"></div>
+    INDUSTRIAL QUALITY MANAGEMENT 4.0
+  </div>
+
+  <h1 class="hero-title fade-up delay-1">
+    The Complete <span>AI-Powered</span><br>Quality Platform
+  </h1>
+
+  <p class="hero-sub fade-up delay-2">
+    Real-time defect detection, OEE monitoring, predictive analytics, and ISO-compliant reporting — all in one production-ready platform.
+  </p>
+
+  <div class="hero-cta fade-up delay-3">
+    <a class="btn-main btn-cyan" href="dashboard.html" id="ctaDashboard">
+      <i class="fas fa-gauge"></i> Open Dashboard
+    </a>
+    <a class="btn-main btn-outline" href="admin-register.html">
+      <i class="fas fa-plus"></i> Create Factory Account
+    </a>
+  </div>
+
+  <div class="hero-stats fade-up delay-3">
+    <div>
+      <div class="hero-stat-val"><span>13</span></div>
+      <div class="hero-stat-label">Active Modules</div>
+    </div>
+    <div>
+      <div class="hero-stat-val"><span>4.0</span></div>
+      <div class="hero-stat-label">Industry Standard</div>
+    </div>
+    <div>
+      <div class="hero-stat-val"><span>99.9</span><span style="font-size:1rem">%</span></div>
+      <div class="hero-stat-label">Uptime Target</div>
+    </div>
+    <div>
+      <div class="hero-stat-val"><span>ISO</span></div>
+      <div class="hero-stat-label">9001 / IATF Compliant</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── STATUS BAR ────────────────────────────────────────── -->
+<div class="status-bar">
+  <div class="status-item"><div class="status-dot dot-green"></div> API Online</div>
+  <div class="status-item"><div class="status-dot dot-blue"></div> AI Engine Ready</div>
+  <div class="status-item"><div class="status-dot dot-green"></div> Database Connected</div>
+  <div class="status-item"><div class="status-dot dot-blue"></div> WebSocket Active</div>
+  <div class="status-item" id="apiStatus" style="margin-left:auto;font-family:var(--mono);font-size:.75rem;color:var(--cyan);">
+    <i class="fas fa-circle-notch fa-spin"></i> Checking...
+  </div>
+</div>
+
+<!-- ── MODULES ───────────────────────────────────────────── -->
+<div class="section">
+  <div class="section-label">Platform Modules</div>
+  <h2 class="section-title">Everything you need for Quality 4.0</h2>
+  <p class="section-sub">13 integrated modules covering the full quality lifecycle from defect capture to AI-driven root cause analysis.</p>
+
+  <div class="modules-grid">
+
+    <a href="dashboard.html" class="module-card" style="--card-accent:#00d4ff;--icon-bg:rgba(0,212,255,.1)">
+      <div class="module-icon-wrap"><i class="fas fa-gauge-high"></i></div>
+      <div class="module-name">Command Dashboard</div>
+      <div class="module-desc">Real-time KPIs, OEE gauges, PPM trend and live factory overview.</div>
+      <div class="module-tag"><i class="fas fa-circle"></i> Live</div>
+    </a>
+
+    <a href="analytics.html" class="module-card" style="--card-accent:#818cf8;--icon-bg:rgba(129,140,248,.1)">
+      <div class="module-icon-wrap"><i class="fas fa-chart-mixed"></i></div>
+      <div class="module-name">Advanced Analytics</div>
+      <div class="module-desc">Pareto charts, shift heatmaps, machine comparison and trend forecasting.</div>
+      <div class="module-tag"><i class="fas fa-chart-line"></i> Chart.js</div>
+    </a>
+
+    <a href="ai.html" class="module-card" style="--card-accent:#34d399;--icon-bg:rgba(52,211,153,.1)">
+      <div class="module-icon-wrap"><i class="fas fa-brain"></i></div>
+      <div class="module-name">AI Intelligence</div>
+      <div class="module-desc">RandomForest defect prediction, Isolation Forest anomaly detection, root cause recommendations.</div>
+      <div class="module-tag"><i class="fas fa-microchip"></i> ML Engine</div>
+    </a>
+
+    <a href="defects.html" class="module-card" style="--card-accent:#f59e0b;--icon-bg:rgba(245,158,11,.1)">
+      <div class="module-icon-wrap"><i class="fas fa-bug"></i></div>
+      <div class="module-name">Defect Records</div>
+      <div class="module-desc">Full defect lifecycle management with CAPA tracking and audit trail.</div>
+      <div class="module-tag"><i class="fas fa-clipboard-list"></i> CAPA</div>
+    </a>
+
+    <a href="forms.html" class="module-card" style="--card-accent:#00d4ff;--icon-bg:rgba(0,212,255,.1)">
+      <div class="module-icon-wrap"><i class="fas fa-wpforms"></i></div>
+      <div class="module-name">Form Builder</div>
+      <div class="module-desc">Drag-and-drop dynamic form engine with calculated fields and conditional logic.</div>
+      <div class="module-tag"><i class="fas fa-cubes"></i> Dynamic</div>
+    </a>
+
+    <a href="reports.html" class="module-card" style="--card-accent:#818cf8;--icon-bg:rgba(129,140,248,.1)">
+      <div class="module-icon-wrap"><i class="fas fa-file-chart-column"></i></div>
+      <div class="module-name">Reports & Export</div>
+      <div class="module-desc">Daily/monthly reports with DataTables, CSV export, and PDF printing.</div>
+      <div class="module-tag"><i class="fas fa-download"></i> Export</div>
+    </a>
+
+    <a href="library.html" class="module-card" style="--card-accent:#34d399;--icon-bg:rgba(52,211,153,.1)">
+      <div class="module-icon-wrap"><i class="fas fa-book"></i></div>
+      <div class="module-name">Quality Library</div>
+      <div class="module-desc">Defect codes, root causes, corrective actions and ISO standards management.</div>
+      <div class="module-tag"><i class="fas fa-database"></i> Knowledge Base</div>
+    </a>
+
+    <a href="spc.html" class="module-card" style="--card-accent:#f59e0b;--icon-bg:rgba(245,158,11,.1)">
+      <div class="module-icon-wrap"><i class="fas fa-wave-square"></i></div>
+      <div class="module-name">SPC Control Charts</div>
+      <div class="module-desc">Statistical Process Control with X-bar/R charts and out-of-control alerts.</div>
+      <div class="module-tag"><i class="fas fa-sigma"></i> Statistical</div>
+    </a>
+
+    <a href="maintenance.html" class="module-card" style="--card-accent:#ef4444;--icon-bg:rgba(239,68,68,.1)">
+      <div class="module-icon-wrap"><i class="fas fa-wrench"></i></div>
+      <div class="module-name">Maintenance</div>
+      <div class="module-desc">Predictive maintenance scheduling with downtime tracking and work orders.</div>
+      <div class="module-tag"><i class="fas fa-calendar-check"></i> Preventive</div>
+    </a>
+
+    <a href="iot.html" class="module-card" style="--card-accent:#00d4ff;--icon-bg:rgba(0,212,255,.1)">
+      <div class="module-icon-wrap"><i class="fas fa-microchip"></i></div>
+      <div class="module-name">IoT Monitoring</div>
+      <div class="module-desc">Live sensor data ingestion, threshold alerts and real-time machine telemetry.</div>
+      <div class="module-tag"><i class="fas fa-wifi"></i> Real-time</div>
+    </a>
+
+    <a href="digital-twin.html" class="module-card" style="--card-accent:#818cf8;--icon-bg:rgba(129,140,248,.1)">
+      <div class="module-icon-wrap"><i class="fas fa-cubes"></i></div>
+      <div class="module-name">Digital Twin</div>
+      <div class="module-desc">Virtual factory simulation for predictive scenario testing and what-if analysis.</div>
+      <div class="module-tag"><i class="fas fa-atom"></i> Simulation</div>
+    </a>
+
+    <a href="traceability.html" class="module-card" style="--card-accent:#34d399;--icon-bg:rgba(52,211,153,.1)">
+      <div class="module-icon-wrap"><i class="fas fa-route"></i></div>
+      <div class="module-name">Traceability</div>
+      <div class="module-desc">End-to-end batch/serial number tracing for full supply chain transparency.</div>
+      <div class="module-tag"><i class="fas fa-barcode"></i> Track & Trace</div>
+    </a>
+
+    <a href="chatbot.html" class="module-card" style="--card-accent:#f59e0b;--icon-bg:rgba(245,158,11,.1)">
+      <div class="module-icon-wrap"><i class="fas fa-robot"></i></div>
+      <div class="module-name">AI Chatbot</div>
+      <div class="module-desc">Natural language quality assistant — ask questions about your production data.</div>
+      <div class="module-tag"><i class="fas fa-comment-dots"></i> NLP</div>
+    </a>
+
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ── FEATURES ──────────────────────────────────────────── -->
+<div class="section">
+  <div class="section-label">Technical Architecture</div>
+  <h2 class="section-title">Production-Ready Infrastructure</h2>
+  <p class="section-sub">Built on proven open-source stack with Railway deployment, PostgreSQL, and JWT security.</p>
+
+  <div class="features-grid">
+    <div class="feature-item">
+      <div class="feature-ico" style="color:var(--cyan)"><i class="fas fa-shield-halved"></i></div>
+      <div>
+        <div class="feature-name">JWT Authentication</div>
+        <div class="feature-desc">Access + refresh token rotation, bcrypt hashing, account lockout protection.</div>
+      </div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-ico" style="color:var(--violet)"><i class="fas fa-building"></i></div>
+      <div>
+        <div class="feature-name">Multi-Tenant</div>
+        <div class="feature-desc">Factory-scoped data isolation — every query filtered by factory_id.</div>
+      </div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-ico" style="color:var(--emerald)"><i class="fas fa-database"></i></div>
+      <div>
+        <div class="feature-name">PostgreSQL + JSONB</div>
+        <div class="feature-desc">Relational core with JSONB for dynamic form responses and AI metadata.</div>
+      </div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-ico" style="color:var(--amber)"><i class="fas fa-bolt"></i></div>
+      <div>
+        <div class="feature-name">WebSocket Real-time</div>
+        <div class="feature-desc">Socket.IO with eventlet for live KPI push to all connected dashboards.</div>
+      </div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-ico" style="color:var(--red)"><i class="fas fa-cloud"></i></div>
+      <div>
+        <div class="feature-name">Railway Deployment</div>
+        <div class="feature-desc">Single Dockerfile, auto-scaled Gunicorn, PostgreSQL add-on, zero-config CI/CD.</div>
+      </div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-ico" style="color:var(--cyan)"><i class="fas fa-lock"></i></div>
+      <div>
+        <div class="feature-name">RBAC Permissions</div>
+        <div class="feature-desc">Role-based access control with granular module-level permission enforcement.</div>
+      </div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-ico" style="color:var(--violet)"><i class="fas fa-brain"></i></div>
+      <div>
+        <div class="feature-name">scikit-learn AI</div>
+        <div class="feature-desc">RandomForest prediction + Isolation Forest anomaly detection, model persistence.</div>
+      </div>
+    </div>
+    <div class="feature-item">
+      <div class="feature-ico" style="color:var(--emerald)"><i class="fas fa-scroll"></i></div>
+      <div>
+        <div class="feature-name">Audit Trail</div>
+        <div class="feature-desc">Every action logged with user, timestamp, IP, and before/after state.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ── FOOTER ────────────────────────────────────────────── -->
+<footer>
+  <a class="footer-brand" href="index.html">
+    <div class="brand-icon" style="width:28px;height:28px;font-size:.8rem;"><i class="fas fa-shield-halved"></i></div>
+    <span style="font-size:.85rem;font-weight:600;color:var(--t2);">QMS Enterprise v3.2</span>
+  </a>
+
+  <nav class="footer-links">
+    <a href="dashboard.html">Dashboard</a>
+    <a href="analytics.html">Analytics</a>
+    <a href="ai.html">AI Module</a>
+    <a href="reports.html">Reports</a>
+    <a href="library.html">Library</a>
+    <a href="login.html">Login</a>
+    <a href="admin-register.html">Register</a>
+    <a href="profile.html">Profile</a>
+    <a href="/api/health" target="_blank">API Health</a>
+  </nav>
+
+  <div class="footer-copy">Quality 4.0 · ISO 9001 · IATF 16949</div>
+</footer>
+
+<script>
+// ── Nav toggle ──────────────────────────────────────────
+function toggleNav() {
+  const nav = document.getElementById('topNav');
+  nav.classList.toggle('open');
+}
+
+// ── Auth-aware CTA buttons ──────────────────────────────
+(function() {
+  const token = localStorage.getItem('access_token');
+  let isLoggedIn = false;
+  if (token) {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      isLoggedIn = payload.exp * 1000 > Date.now();
+    } catch(e) {}
+  }
+  if (isLoggedIn) {
+    const loginBtn = document.getElementById('loginBtn');
+    if (loginBtn) { loginBtn.innerHTML = '<i class="fas fa-gauge"></i> Dashboard'; loginBtn.href = 'dashboard.html'; }
+    const getStarted = document.getElementById('getStartedBtn');
+    if (getStarted) { getStarted.innerHTML = 'Open Dashboard'; getStarted.href = 'dashboard.html'; }
+    const ctaDashboard = document.getElementById('ctaDashboard');
+    if (ctaDashboard) { ctaDashboard.innerHTML = '<i class="fas fa-gauge"></i> Open Dashboard'; }
+  }
+})();
+
+// ── API health check ──────────────────────────────────
+async function checkHealth() {
+  const el = document.getElementById('apiStatus');
+  try {
+    const res = await fetch('/api/health', { signal: AbortSignal.timeout(5000) });
+    if (res.ok) {
+      const data = await res.json();
+      el.innerHTML = `<i class="fas fa-circle" style="color:var(--emerald);font-size:.6rem;"></i> v${data.version || '3.2'}`;
+    } else {
+      el.innerHTML = `<i class="fas fa-circle" style="color:var(--amber);font-size:.6rem;"></i> API ${res.status}`;
+    }
+  } catch(e) {
+    el.innerHTML = `<i class="fas fa-circle" style="color:var(--t3);font-size:.6rem;"></i> No connection`;
+  }
+}
+checkHealth();
+
+// ── Intersection observer for fade-up ─────────────────
+const obs = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.style.opacity = '1'; e.target.style.transform = 'none'; } });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('.module-card, .feature-item').forEach(el => {
+  el.style.opacity = '0';
+  el.style.transform = 'translateY(16px)';
+  el.style.transition = 'opacity .4s ease, transform .4s ease';
+  obs.observe(el);
+});
+</script>
+</body>
+</html>
