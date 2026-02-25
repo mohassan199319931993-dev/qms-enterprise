@@ -3,7 +3,7 @@
 #  Single container: Flask serves API + static frontend
 #  Railway injects PORT at runtime via environment variable
 # ═══════════════════════════════════════════════════════════════════
-FROM python:3.12-slim
+FROM python:3.11-slim
 
 # ── System dependencies ─────────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
