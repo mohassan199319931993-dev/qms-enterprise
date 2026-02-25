@@ -34,8 +34,7 @@ ENV FLASK_ENV=production \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/app/backend \
-    MODEL_DIR=/tmp/ai_models \
-    PORT=8000
+    MODEL_DIR=/tmp/ai_models0
 
 EXPOSE 8000
 
