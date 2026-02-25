@@ -43,14 +43,4 @@ EXPOSE 8000
 WORKDIR /app/backend
 
 # ── Start command — shell form so $PORT expands at runtime ──────
-CMD gunicorn \
-        --bind "0.0.0.0:${PORT:-8000}" \
-        --workers 2 \
-        --worker-class eventlet \
-        --worker-connections 1000 \
-        --timeout 120 \
-        --keepalive 5 \
-        --access-logfile - \
-        --error-logfile - \
-        --log-level info \
-        wsgi:application
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "wsgi:application"]
