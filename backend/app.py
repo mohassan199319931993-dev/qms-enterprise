@@ -148,10 +148,10 @@ def create_app(config_name=None):
         return jsonify({"status": "ok", "message": "QMS Enterprise API"}), 200
 
     # ── Background Scheduler ───────────────────────────────────────
-    if not app.config.get('TESTING'):
-        try:
-            from ai.scheduler import start_scheduler
-            start_scheduler(app)
+# Disable scheduler for production start
+# if not app.config.get('TESTING'):
+#     from ai.scheduler import start_scheduler
+#     start_scheduler(app)
         except Exception as e:
             logger.warning(f"Scheduler not started: {e}")
 
