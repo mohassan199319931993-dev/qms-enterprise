@@ -152,8 +152,10 @@ def create_app(config_name=None):
 # if not app.config.get('TESTING'):
 #     from ai.scheduler import start_scheduler
 #     start_scheduler(app)
-        except Exception as e:
-            logger.warning(f"Scheduler not started: {e}")
+         try:
+         ...
+          except Exception as e:
+         logger.error(...)
 
     # ── KPI broadcast helper ───────────────────────────────────────
     if socketio:
